@@ -1,6 +1,6 @@
 // Import the discord.js module
 const Discord = require('discord.js');
-//const ytdl = require('ytdl-core');
+const ytdl = require('ytdl-core');
 
 
 // Create an instance of a Discord client
@@ -16,24 +16,19 @@ bot.on('voiceStateUpdate', (oldMember, newMember) =>
 {
     let newUserChannel = newMember.voiceChannel;
     let oldUserChannel = oldMember.voiceChannel;
-
+    // Play streams using ytdl-core
+    const ytdl = require('ytdl-core');
+    const streamOptions = { seek: 0, volume: 1 };
     //User Joins a voice channel
     if(oldUserChannel === undefined && newUserChannel !== undefined)
     {
+        const streamOptions = { seek: 0, volume: 1 };
         console.log(newMember + ' joined the chat');
         var voiceChannel = newMember.voiceChannel;
         voiceChannel.join().then(connection =>
         {
-            //const dispatcher = connection.playConvertedStream(ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0', { filter: 'audioonly' }));
-            const dispatcher = connection.playFile('./audio/WELCOME TO THE RICE FIELDS MOTHERFUCKER.mp3');
-            
-            dispatcher.on("end", () => 
-            {
-                console.log('Successfully played soundbyte');
-            });
-            setTimeout(function(){
-                voiceChannel.leave();
-            },5000);
+            const stream = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0', { filter : 'audioonly' });
+            const dispatcher = connection.playStream(stream, streamOptions);
         }).catch(err => console.log(err));
     }
 })

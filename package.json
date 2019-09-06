@@ -9,8 +9,21 @@
     "discord.js": "^11.5.1",
     "ffmpeg": "0.0.4",
     "ffmpeg-binaries": "^4.0.0",
+    "node-opus": "^0.3.2",
     "opusscript": "0.0.7",
     "winston": "^3.2.1",
     "ytdl-core": "^0.29.6"
-  }
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LamTDuong/RiceBot.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LamTDuong/RiceBot/issues"
+  },
+  "homepage": "https://github.com/LamTDuong/RiceBot#readme"
 }
