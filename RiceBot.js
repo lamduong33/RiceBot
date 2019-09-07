@@ -23,11 +23,23 @@ bot.on('voiceStateUpdate', (oldMember, newMember) =>
     if(oldUserChannel === undefined && newUserChannel !== undefined)
     {
         const streamOptions = { seek: 0, volume: 1 };
-        console.log(newMember + ' joined the chat');
+        console.log(newMember.displayName + ' joined the chat');
         var voiceChannel = newMember.voiceChannel;
         voiceChannel.join().then(connection =>
         {
-            const stream = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0');
+            let stream = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0');
+            if (newMember.displayName == "Llamanator")
+            {
+                stream = ytdl('https://www.youtube.com/watch?v=3WAOxKOmR90');
+            }
+            if (newMember.displayName == "This Guy Fucks")
+            {
+                stream = ytdl('https://www.youtube.com/watch?v=dPSi6w5QnP0');
+            }
+            if (newMember.displayName == "Lootenant Dan")
+            {
+                stream = ytdl('https://youtu.be/8X_Ot0k4XJc');
+            }
             const dispatcher = connection.playStream(stream, streamOptions);
             
             setTimeout(function(){
