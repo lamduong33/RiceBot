@@ -27,7 +27,7 @@ function getUsers()
 	let guilds = bot.guilds.array();
 	for (let i = 0; i < guilds.length; i++)
 	{
-		bot.guilds.get(guilds[i].id).fetchMembers().then(r =>
+        bot.guilds.get(guilds[i].id).fetchMembers().then(r =>
 		{
 			r.members.array().forEach(r =>
 			{
@@ -40,6 +40,7 @@ function getUsers()
 	}
 }
 
+// Get users for recording purposes
 getUsers();
 
 bot.login('NTY0MTYzODI4MDQxMTIxNzk1.XXGTTw.laL-lM2N_VQ_e58w5Q61Y_Rk4nI')
@@ -60,31 +61,38 @@ bot.on('voiceStateUpdate', (oldMember, newMember) =>
     //User Joins a voice channel
     if(oldUserChannel === undefined && newUserChannel !== undefined)
     {
-        const streamOptions = { seek: 0, volume: 1 };
-        console.log(newMember.displayName + ' joined the chat');
-        var voiceChannel = newMember.voiceChannel;
-
-        voiceChannel.join().then(connection =>
+        // If user is not Groovy
+        if (newMember.id != 234395307759108106)
         {
-		let stream = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0');
-		for (var i = 0; i < userTracks.userTracks.length; i++)
-		{
-			if (newMember.id == userTracks.userTracks[i].id)
-			{
-				stream = ytdl(userTracks.userTracks[i].track);
-			}
-		}
-            const dispatcher = connection.playStream(stream, streamOptions);
-            
-            setTimeout(function(){
-                dispatcher.on("end", () => 
+            const streamOptions = { seek: 0, volume: 1 };
+            console.log(newMember.displayName + ' joined the chat');
+            var voiceChannel = newMember.voiceChannel;
+    
+            voiceChannel.join().then(connection =>
+            {
+                // Play stream of the default "Welcome to the rice fields"
+        		let stream = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0');
+        		for (var i = 0; i < userTracks.userTracks.length; i++)
+        		{
+                    // Check to see if the user is in the list of users
+        			if (newMember.id == userTracks.userTracks[i].id)
+        			{
+        				stream = ytdl(userTracks.userTracks[i].track);
+        			}
+        		}
+                const dispatcher = connection.playStream(stream, streamOptions);
+                    
+                setTimeout(function()
                 {
-                    console.log("end");
-                    voiceChannel.leave();
-                });
-            }, 1000);
-
-        }).catch(err => console.log(err));
+                    dispatcher.on("end", () => 
+                    {
+                        console.log("end");
+                        voiceChannel.leave();
+                    });
+                }, 1000);
+        
+            }).catch(err => console.log(err));
+        }
     }
 })
 
