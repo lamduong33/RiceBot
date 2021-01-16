@@ -1,0 +1,27 @@
+{
+  "name": "ricebot",
+  "version": "1.0.0",
+  "description": "Play introduction for Lam",
+  "main": "RiceBot.js",
+  "dependencies": {
+    "@discordjs/opus": "^0.3.3",
+    "discord.js": "^12.5.1",
+    "ffmpeg": "0.0.4",
+    "fluent-ffmpeg": "^2.1.2",
+    "ytdl-core": "^4.4.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lamduong33/RiceBot.git"
+  },
+  "author": "Lam T Duong",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lamduong33/RiceBot/issues"
+  },
+  "homepage": "https://github.com/lamduong33/RiceBot#readme"
+}
