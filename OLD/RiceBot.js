@@ -81,7 +81,6 @@ bot.on('voiceStateUpdate', (oldMember, newMember) =>
         			}
         		}
                 const dispatcher = connection.playStream(stream, streamOptions);
-                    
                 setTimeout(function()
                 {
                     dispatcher.on("end", () => 

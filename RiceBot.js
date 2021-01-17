@@ -5,8 +5,9 @@ const
     prefix,
     token
 } = require("./config.json");
-const ytdl = require("ytdl-core");
-
+const ytdl = require("ytdl-core"); // For playing music on YT
+var fs = require("fs");
+ 
 // Login and authenticate BOT
 const riceBot = new Discord.Client();
 riceBot.login(token);
@@ -36,9 +37,11 @@ riceBot.on("message", async message =>
     if (!message.content.startsWith(prefix)) return; 
 }); // assign message
 
+
+
 riceBot.on("voiceStateUpdate", (oldState, newState) =>
 {
-    if (newState.channelID !== null)
+    if ((newState.channelID !== null) && (oldState.channelID === null))
     {
         console.log(oldState.member.displayName + " joined the chat");
         var voiceChannel = newState.channel; // channel user just joined
@@ -61,7 +64,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
             }, 1000);
         }).catch(err => console.log(err));
     }
-    else if (newState.channelID === null)
+    else if ((newState.channelID === null) && (oldState.channelID !== null))
     {
         console.log(newState.member.displayName + " left the chat");
     }
