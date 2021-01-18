@@ -104,7 +104,7 @@ riceBot.on("message", message =>
 			{
 				userTracks.userTracks[i].track = stream;
 				console.log(`${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`);
-                getInfo('https://www.youtube.com/watch?v=YQHsXMglC9A', function(err, info) {
+                getInfo(message, function(err, info) {
 				    message.reply(`You've set your track to ${info.title}`);
                 });
 			}
