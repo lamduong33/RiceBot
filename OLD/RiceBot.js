@@ -89,7 +89,6 @@ bot.on('voiceStateUpdate', (oldMember, newMember) =>
                         voiceChannel.leave();
                     });
                 }, 1000);
-        
             }).catch(err => console.log(err));
         }
     }

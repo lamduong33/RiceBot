@@ -25,25 +25,6 @@ function getUserTracks()
 	}
 }
 
-// Get the users
-function getUsers()
-{
-	let guilds = bot.guilds.array();
-	for (let i = 0; i < guilds.length; i++)
-	{
-        bot.guilds.get(guilds[i].id).fetchMembers().then(r =>
-		{
-			r.members.array().forEach(r =>
-			{
-				let username = `${r.user.username}`;
-				let userID = `${r.user.id}`;
-				users.push(username);
-				console.log(`${username}: ${userID}`);
-			});
-		});
-	}
-}
-
 // Get list of users who do not have welcome messages, such as bots
 let rawData2 = fs.readFileSync("noIntroUsers.json");
 
@@ -72,6 +53,7 @@ riceBot.on("message", async message =>
     if (!message.content.startsWith(prefix)) return; 
 }); // assign message
 
+// Whenever a state is changed
 riceBot.on("voiceStateUpdate", (oldState, newState) =>
 {
     if ((newState.channelID !== null) && (oldState.channelID === null))
