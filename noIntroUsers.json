@@ -1,12 +1,13 @@
 {
-    "users": [
+    "users": 
+    [
         {
             "id": "255708899234021377",
-            "name": "Lam"
+            "name": "Botify"
         },
         {
             "id": "377249871629123584",
-            "name": "Dan"
+            "name": "Groovy"
         }
     ]
 }

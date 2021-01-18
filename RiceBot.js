@@ -25,6 +25,25 @@ function getUserTracks()
 	}
 }
 
+// Get the users
+function getUsers()
+{
+	let guilds = bot.guilds.array();
+	for (let i = 0; i < guilds.length; i++)
+	{
+        bot.guilds.get(guilds[i].id).fetchMembers().then(r =>
+		{
+			r.members.array().forEach(r =>
+			{
+				let username = `${r.user.username}`;
+				let userID = `${r.user.id}`;
+				users.push(username);
+				console.log(`${username}: ${userID}`);
+			});
+		});
+	}
+}
+
 // Get list of users who do not have welcome messages, such as bots
 let rawData2 = fs.readFileSync("noIntroUsers.json");
 
@@ -66,8 +85,16 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
             let streamOptions = {seek: 0, volume: 1};
             let defaultGreeting = ytdl('https://www.youtube.com/watch?v=i8a3gjt_Ar0');
             let stream = defaultGreeting;
-            const dispatcher = connection.play(stream, streamOptions);
 
+            for (var i = 0; i < userTracks.userTracks.length; i++)
+            {
+                // Check to see if the user is in the list of users
+                if (newMember.id == userTracks.userTracks[i].id)
+                {
+                    stream = ytdl(userTracks.userTracks[i].track);
+                }
+            }
+            const dispatcher = connection.play(stream, streamOptions);
             // Timeout for discord bot
             setTimeout(function()
             {
