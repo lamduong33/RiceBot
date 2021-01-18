@@ -77,6 +77,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
                 }
             }
             const dispatcher = connection.play(stream, streamOptions);
+
             // Timeout for discord bot
             setTimeout(function()
             {
@@ -85,7 +86,8 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
                     console.log("Welcome for %s ended", newState.member.displayName);
                     voiceChannel.leave();
                 });
-            }, 1000);
+                voiceChannel.leave();
+            }, 10000);
         }).catch(err => console.log(err));
     }
     else if ((newState.channelID === null) && (oldState.channelID !== null))
@@ -113,12 +115,9 @@ riceBot.on("message", message =>
 			{
 				userTracks.userTracks[i].track = stream;
 				console.log(`${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`);
-                getInfo(message, function(err, info) {
-				    message.reply(`You've set your track to ${info.title}`);
-                });
 			}
 		}
-		fs.writeFile('usertracks.json', JSON.stringify(userTracks, null, 4), function (err,result)
+		fs.writeFile('usertracks.json', JSON.stringify(userTracks, null, 4), function (err, result)
 		{
 			if(err) console.log('error', err);
 		});
