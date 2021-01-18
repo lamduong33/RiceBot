@@ -89,7 +89,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
             for (var i = 0; i < userTracks.userTracks.length; i++)
             {
                 // Check to see if the user is in the list of users
-                if (newMember.id == userTracks.userTracks[i].id)
+                if (newState.member.id == userTracks.userTracks[i].id)
                 {
                     stream = ytdl(userTracks.userTracks[i].track);
                 }
