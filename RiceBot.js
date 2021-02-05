@@ -76,6 +76,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
                     stream = ytdl(userTracks.userTracks[i].track);
                 }
             }
+            console.log("Playing %s", stream)
             const dispatcher = connection.play(stream, streamOptions);
 
             // Timeout for discord bot
