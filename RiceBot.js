@@ -17,12 +17,12 @@ let rawData = fs.readFileSync("usertracks.json");
 let userTracks = JSON.parse(rawData);
 
 // For denbugging and seeing the list of user tracks and associated users
-function getUserTracks()
+function GetUserTracks()
 {
-	for (var i = 0; i < userTracks.userTracks.length; i++)
-	{
-		console.log(userTracks.userTracks[i].id);
-	}
+    for (var i = 0; i < userTracks.userTracks.length; i++)
+    {
+        console.log(userTracks.userTracks[i].id);
+    }
 }
 
 // Get list of users who do not have welcome messages, such as bots
@@ -100,26 +100,26 @@ riceBot.on("voiceStateUpdate", (oldState, newState) =>
 riceBot.on("message", message =>
 {
     // Format the command to lowercase
-	if (!message.content.startsWith(prefix) || message.author.bot) return;
-	const args = message.content.slice(prefix.length).split(' ');
-	const command = args.shift().toLowerCase();
+    if (!message.content.startsWith(prefix) || message.author.bot) return;
+    const args = message.content.slice(prefix.length).split(' ');
+    const command = args.shift().toLowerCase();
 
     // Set track command. allows user to manually set the track for their intro
-	if (command === 'settrack')
-	{
-		let stream = args[0];
+    if (command === 'settrack')
+    {
+        let stream = args[0];
         // Search through list of user tracks
-		for (var i = 0; i < userTracks.userTracks.length; i++)
-		{
-			if (userTracks.userTracks[i].id === message.author.id)
-			{
-				userTracks.userTracks[i].track = stream;
-				console.log(`${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`);
-			}
-		}
-		fs.writeFile('usertracks.json', JSON.stringify(userTracks, null, 4), function (err, result)
-		{
-			if(err) console.log('error', err);
-		});
-	}
+        for (var i = 0; i < userTracks.userTracks.length; i++)
+        {
+            if (userTracks.userTracks[i].id === message.author.id)
+            {
+                userTracks.userTracks[i].track = stream;
+                console.log(`${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`);
+            }
+        }
+        fs.writeFile('usertracks.json', JSON.stringify(userTracks, null, 4), function (err, result)
+        {
+            if(err) console.log('error', err);
+        });
+    }
 });
