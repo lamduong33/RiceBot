@@ -16,8 +16,8 @@ const riceBot = new Discord.Client();
 riceBot.login(token);
 
 // Get list of tracks URLS
-let rawData = fs.readFileSync("usertracks.json");
-let userTracks = JSON.parse(rawData);
+let rawUsersList = fs.readFileSync("usertracks.json");
+let userTracks = JSON.parse(rawUsersList);
 
 // For debugging and seeing the list of user tracks and associated users
 function GetUserTracks() {
@@ -27,7 +27,8 @@ function GetUserTracks() {
 }
 
 // Get list of users who do not have welcome messages, such as bots
-let rawData2 = fs.readFileSync("noIntroUsers.json");
+let botsList = fs.readFileSync("botsList.json");
+let bots = JSON.parse(botsList);
 
 // Listener and logging
 riceBot.once("ready", () => {
@@ -69,6 +70,16 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
                     break;
                 }
             }
+
+            // Check to see if the user is in list of bots
+            for (var i = 0; i < bots.botsList.length; i++)
+            {
+                if (newState.member.id == bots.botsList.id)
+                {
+                    voiceChannel.leave();
+                    return;
+                }
+            }
             console.log("Playing %s", streamURL);
 
             // Play the stream here
@@ -102,6 +113,7 @@ riceBot.on("message", message => {
 
     // Set track command. allows user to manually set the track for their intro
     if (command === 'settrack') {
+
         let stream = args[0];
         // Search through list of user tracks
         for (var i = 0; i < userTracks.userTracks.length; i++) {
