@@ -26,11 +26,30 @@ function GetUserTracks() {
     }
 }
 
-// Get list of users who do not have welcome messages, such as bots
-let botsList = fs.readFileSync("botsList.json");
-let bots = JSON.parse(botsList);
+// get list of users who do not have welcome messages, such as bots
+let botsListFile= fs.readFileSync("botslist.json");
+let bots = JSON.parse(botsListFile);
 
-// Listener and logging
+debugger;
+
+function inBotsList(memberID) {
+    // check to see if the user is in list of bots
+    console.log("Checking if this is a bot...");
+    console.log("USER ID IS %s", memberID);
+    for (var i = 0; i < bots.botsList.length; i++)
+    {
+        console.log("%s", bots.botsList[i].id);
+        if (memberID === bots.botsList[i].id)
+        {
+            console.log("BOT DETECTED");
+            return true;
+        }
+    }
+    console.log("NOT A BOT");
+    return false;
+}
+
+// listener and logging
 riceBot.once("ready", () => {
     console.log("RiceBot is ready!");
 });
@@ -38,13 +57,13 @@ riceBot.once("reconnecting", () => {
     console.log("RiceBot is reconnecting...");
 });
 riceBot.once("disconnect", () => {
-    console.log("Ricebot is disconnected!!");
+    console.log("RiceBot is disconnected!!");
 });
 riceBot.once("error", () => {
-    console.log("ERROR!!!");
+    console.log("error!!!");
 });
 
-// Read commands from user messages
+// read commands from user messages
 riceBot.on("message", async message => {
     if (message.author.bot) return; // ignore message if it's from the bot
     if (!message.content.startsWith(prefix)) return;
@@ -52,7 +71,7 @@ riceBot.on("message", async message => {
 
 // Whenever a state is changed
 riceBot.on("voiceStateUpdate", (oldState, newState) => {
-    if ((newState.channelID !== null) && (oldState.channelID === null)) {
+    if ((newState.channelID !== null) && (oldState.channelID === null) && (inBotsList(newState.member.id) === false)) {
         console.log(oldState.member.displayName + " joined the chat");
         var voiceChannel = newState.channel; // channel user just joined
 
@@ -71,15 +90,6 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
                 }
             }
 
-            // Check to see if the user is in list of bots
-            for (var i = 0; i < bots.botsList.length; i++)
-            {
-                if (newState.member.id == bots.botsList.id)
-                {
-                    voiceChannel.leave();
-                    return;
-                }
-            }
             console.log("Playing %s", streamURL);
 
             // Play the stream here
@@ -113,7 +123,6 @@ riceBot.on("message", message => {
 
     // Set track command. allows user to manually set the track for their intro
     if (command === 'settrack') {
-
         let stream = args[0];
         // Search through list of user tracks
         for (var i = 0; i < userTracks.userTracks.length; i++) {
