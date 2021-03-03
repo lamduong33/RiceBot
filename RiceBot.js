@@ -159,7 +159,3 @@ riceBot.on("message", (message) => {
     );
   }
 });
-
-class Car {
-  constructor(number) {}
-}
