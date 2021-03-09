@@ -12,15 +12,8 @@ const riceBot = new Discord.Client();
 riceBot.login(token);
 
 // Get list of tracks URLS
-let rawUsersList = fs.readFileSync("usertracks.json");
-let userTracks = JSON.parse(rawUsersList);
-
-// For debugging and seeing the list of user tracks and associated users
-function GetUserTracks() {
-  for (var i = 0; i < userTracks.userTracks.length; i++) {
-    console.log(userTracks.userTracks[i].id);
-  }
-}
+let rawUsersList = fs.readFileSync("userDB.json");
+let userDB = JSON.parse(rawUsersList);
 
 // get list of users who do not have welcome messages, such as bots
 let botsListFile = fs.readFileSync("botslist.json");
@@ -101,7 +94,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
           voiceChannel.leave();
         });
 
-        setTimeout(function () {
+        setTimeout(function() {
           console.log(
             "Welcome for %s elapsed for 10 seconds. Ending.",
             newState.member.displayName
@@ -124,38 +117,50 @@ riceBot.on("message", (message) => {
 
   // Set track command. allows user to manually set the track for their intro
   if (command === "settrack") {
-    let stream = args[0];
-    // Search through list of user tracks
-    for (var i = 0; i < userTracks.userTracks.length; i++) {
-      // If the user is in the list of valid users, usertracks.json
-      if (userTracks.userTracks[i].id === message.author.id) {
-        // If it's the default
-        if (stream === "default") {
-          console.log("Set default message for %s", message.author.id);
-          message.channel.send("You've set your welcome message to default");
-          stream = defaultGreeting;
-        }
-
-        // If the track is not valid
-        if (ytdl.validateURL(stream) === false) {
-          console.log("Invalid %stream", stream);
-          message.channel.send("That was an invalid link. Please try again.");
-          break;
-        }
-
-        userTracks.userTracks[i].track = stream;
-        console.log(
-          `${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`
-        );
-        break;
-      }
-    }
-    fs.writeFile(
-      "usertracks.json",
-      JSON.stringify(userTracks, null, 4),
-      function (err, result) {
-        if (err) console.log("error", err);
-      }
-    );
+    setTrackCommand()
   }
 });
+
+/* setTrackCommand:
+ * -----------------------------------------------------------------------------
+ * input: args -> Message
+ *
+ * This function will set the track for the user. It will parse the argument
+ * passed into chat. Refer to the userDB.json file to understand the database
+ * structure.
+ */
+function setTrackCommand(args) {
+  let stream = args[0];
+  // Search through list of user tracks
+  for (var i = 0; i < userTracks.userTracks.length; i++) {
+    // If the user is in the list of valid users, usertracks.json
+    if (userTracks.userTracks[i].id === message.author.id) {
+      // If it's the default
+      if (stream === "default") {
+        console.log("Set default message for %s", message.author.id);
+        message.channel.send("You've set your welcome message to default");
+        stream = defaultGreeting;
+      }
+
+      // If the track is not valid
+      if (ytdl.validateURL(stream) === false) {
+        console.log("Invalid %stream", stream);
+        message.channel.send("That was an invalid link. Please try again.");
+        break;
+      }
+
+      userTracks.userTracks[i].track = stream;
+      console.log(
+        `${userTracks.userTracks[i].id}: ${userTracks.userTracks[i].track}`
+      );
+      break;
+    }
+  }
+  fs.writeFile(
+    "usertracks.json",
+    JSON.stringify(userTracks, null, 4),
+    function(err, result) {
+      if (err) console.log("error", err);
+    }
+  );
+}
