@@ -84,12 +84,15 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
           let user = userDB.users[i]
           // Check to see if the user is in the list of users
           if (newState.member.id == user.id) {
-            streamURL = user.tracks[0].track
+            streamURL = user.tracks[0].track; // add default track first
+            streamOptions = {seek: user.tracks[0].seek, volume: user.tracks[0].volume};
             for (var j = 0; j < user.tracks.length; j++) {
               track = user.tracks[j]
               // Check current name to match with database ID
               if (track.channelName == newState.channel.name) {
-                streamURL = track.track
+                streamURL = track.track;
+                streamOptions = { seek: track.seek, volume: track.volume };
+                break;
               }
             }
             stream = ytdl(streamURL);
@@ -124,7 +127,7 @@ riceBot.on("message", (message) => {
 
   // Interpret different commands
   if (command == "settrack") {
-    setTrackCommand(args, message)
+    setTrackCommand(args, message);
   }
 });
 
@@ -139,18 +142,22 @@ riceBot.on("message", (message) => {
  */
 function setTrackCommand(args, message) {
   let streamURL = args[0];
-  let channelName = "0"
+  let channelName = "0";
+  startTime = 0; // in seconds
+  volume = 1;
 
   // Handle different arguments
   if (args.length === 0) {
-    message.channel.send("Please follow the format -> [URL] [Channels' Name]")
-  } else if (args.length >= 2) { // for when there's a channel name provided
-    channelName = ""
-    // Append the rest of channels name
-    for (var nameIndex = 1; nameIndex < args.length; nameIndex++) {
-      channelName += args[nameIndex]
-      if (nameIndex !== args.length - 1)
-        channelName += " "
+    message.channel.send("Please follow the format -> \"URL\" \"Channels'"
+      + " Name\". Type !help for usage and examples");
+  } else if (args.length >= 2) {
+    channelName = getChannelName(args);
+    if (channelName === "")
+      channelName = "0"
+    startTime = getStartPosition(args);
+    volume = getVolume(args);
+    if ((volume > 1) || (volume < 0)) {
+      message.channel.send("Volume has to be between 0 and 1, try again")
     }
   }
 
@@ -158,12 +165,12 @@ function setTrackCommand(args, message) {
   // Search through list of user tracks
   for (var i = 0; i < userDB.users.length; i++) {
 
-    user = userDB.users[i]
-    userID = message.author.id
+    user = userDB.users[i];
+    userID = message.author.id;
 
     // If the user is in the list of valid users, userDB.json
     if (user.id === userID) {
-      userFound = true
+      userFound = true;
 
       // If it's the default
       if (streamURL === "default") {
@@ -179,15 +186,20 @@ function setTrackCommand(args, message) {
       }
 
       // Set the stream and write to JSON file
-      found = false
+      found = false;
       for (j = 0; j < user.tracks.length; j++) {
         if (user.tracks[j].channelName === channelName) {
-          user.tracks[j].track = streamURL
-          found = true
+          user.tracks[j].track = streamURL;
+          user.tracks[j].seek = startTime;
+          user.tracks[j].volume = volume;
+          found = true;
         }
       }
       if (found === false) // If it's a new channel being inserted
-        user.tracks.push({ "channelName": channelName, "track": streamURL })
+        user.tracks.push({
+          "channelName": channelName, "track": streamURL,
+          "seek": startTime, "volume": volume
+        });
 
       // Write to JSON file
       fs.writeFile(
@@ -205,4 +217,60 @@ function setTrackCommand(args, message) {
     message.channel.send("You are not in the list of users to use RiceBot." +
       " Please contact " + owner)
   }
+}
+
+/* getChannelName
+ *------------------------------------------------------------------------------
+ * input: args
+ *
+ * Return the channel name of the string. If it encounters a flag such as -s or
+ * -v, it will end
+ */
+function getChannelName(args) {
+  channelName = ""
+  for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
+    if ((args[commandIndex != "-s"]) && (args[commandIndex != "-v"])) {
+      channelName += args[commandIndex]
+      if (commandIndex !== args.length - 1)
+        channelName += " "
+    } else {
+      break
+    }
+  }
+  return channelName
+}
+
+/* getVolume
+ *------------------------------------------------------------------------------
+ * input: args
+ *
+ * Return the volume from the command. It searches for the '-v' flag
+ */
+function getVolume(args) {
+  volume = 1
+  for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
+    if (args[commandIndex] === "-v") {
+      volume = Number(args[commandIndex + 1]);
+      break;
+    }
+  }
+  return volume
+}
+
+
+/* getVolume
+ *------------------------------------------------------------------------------
+ * input: args
+ *
+ * Return the starting position from the command. It searches for the '-v' flag
+ */
+function getStartPosition(args) {
+  seek = 0
+  for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
+    if (args[commandIndex] === "-s") {
+      seek = Number(args[commandIndex + 1]);
+      break;
+    }
+  }
+  return seek
 }
