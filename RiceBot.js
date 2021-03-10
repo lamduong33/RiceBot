@@ -142,16 +142,16 @@ function setTrackCommand(args, message) {
   let channelName = "0"
 
   // Handle different arguments
-  if (args.length <= 2) {
-    channelName = args[1]
-  } else {
+  if (args.length === 0) {
+    message.channel.send("Please follow the format -> [URL] [Channels' Name]")
+  } else if (args.length >= 2) { // for when there's a channel name provided
     channelName = ""
     // Append the rest of channels name
-    for (var nameIndex = 1; nameIndex < args.length; nameIndex++){
+    for (var nameIndex = 1; nameIndex < args.length; nameIndex++) {
       channelName += args[nameIndex]
-      if (nameIndex !== args.length-1)
+      if (nameIndex !== args.length - 1)
         channelName += " "
-      }
+    }
   }
 
   userFound = false
