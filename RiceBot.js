@@ -15,24 +15,19 @@ riceBot.login(token);
 let rawUsersList = fs.readFileSync("userDB.json");
 let userDB = JSON.parse(rawUsersList);
 
+
 // get list of users who do not have welcome messages, such as bots
 let botsListFile = fs.readFileSync("botslist.json");
 let bots = JSON.parse(botsListFile);
 
-debugger;
 
 function inBotsList(memberID) {
   // check to see if the user is in list of bots
-  console.log("Checking if this is a bot...");
-  console.log("USER ID IS %s", memberID);
   for (var i = 0; i < bots.botsList.length; i++) {
-    console.log("%s", bots.botsList[i].id);
     if (memberID === bots.botsList[i].id) {
-      console.log("BOT DETECTED");
       return true;
     }
   }
-  console.log("NOT A BOT");
   return false;
 }
 
@@ -58,6 +53,7 @@ riceBot.on("message", async (message) => {
 
 // Whenever a state is changed
 riceBot.on("voiceStateUpdate", (oldState, newState) => {
+  // Check if a new user has joined the channel due to channel's state change.
   if (
     newState.channelID !== null &&
     oldState.channelID === null &&
@@ -67,6 +63,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
     var voiceChannel = newState.channel; // channel user just joined
 
     // Bot joins channel
+    // TODO: Add the ability to not play banned uses' sound clips
     voiceChannel
       .join()
       .then((connection) => {
@@ -74,12 +71,24 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
         let stream = ytdl(defaultGreeting);
         let streamURL = "";
 
-        for (var i = 0; i < userTracks.userTracks.length; i++) {
+        debugger;
+        for (var i = 0; i < userDB.users.length; i++) {
+          let user = userDB.users[i]
           // Check to see if the user is in the list of users
-          if (newState.member.id == userTracks.userTracks[i].id) {
-            streamURL = userTracks.userTracks[i].track;
+          if (newState.member.id == user.id) {
+            streamURL = user.tracks[0].track
+            for (var j = 0; j < user.tracks.length; j++) {
+              track = user.tracks[i]
+              // Check current channelID to match with database ID
+              if (track.channelID == newState.channelID) {
+                streamURL = track.track
+              }
+            }
             stream = ytdl(streamURL);
             break;
+          }
+          else {
+            console.log("User isn't in list of users\n")
           }
         }
 
@@ -108,7 +117,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
   }
 });
 
-// COMMANDS FOR RICEBOTS
+// COMMANDS FOR RICEBOT
 riceBot.on("message", (message) => {
   // Format the command to lowercase
   if (!message.content.startsWith(prefix) || message.author.bot) return;
