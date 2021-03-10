@@ -50,6 +50,7 @@ riceBot.once("error", () => {
   console.log("error!!!");
 });
 
+
 // read commands from user messages
 riceBot.on("message", async (message) => {
   if (message.author.bot) return; // ignore message if it's from the bot
@@ -144,9 +145,16 @@ function setTrackCommand(args, message) {
   if (args.length <= 2) {
     channelName = args[1]
   } else {
-    message.channel.send("Please follow the format -> [URL] [Channels' Name]")
+    channelName = ""
+    // Append the rest of channels name
+    for (var nameIndex = 1; nameIndex < args.length; nameIndex++){
+      channelName += args[nameIndex]
+      if (nameIndex !== args.length-1)
+        channelName += " "
+      }
   }
 
+  userFound = false
   // Search through list of user tracks
   for (var i = 0; i < userDB.users.length; i++) {
 
@@ -155,6 +163,7 @@ function setTrackCommand(args, message) {
 
     // If the user is in the list of valid users, userDB.json
     if (user.id === userID) {
+      userFound = true
 
       // If it's the default
       if (streamURL === "default") {
@@ -172,13 +181,13 @@ function setTrackCommand(args, message) {
       // Set the stream and write to JSON file
       found = false
       for (j = 0; j < user.tracks.length; j++) {
-        if (user.tracks[j].channelName === channelName){
+        if (user.tracks[j].channelName === channelName) {
           user.tracks[j].track = streamURL
           found = true
         }
       }
       if (found === false) // If it's a new channel being inserted
-        user.tracks.push({"channelName" : channelName, "track": streamURL})
+        user.tracks.push({ "channelName": channelName, "track": streamURL })
 
       // Write to JSON file
       fs.writeFile(
@@ -189,12 +198,11 @@ function setTrackCommand(args, message) {
         }
       );
       break;
-    } else {
-      owner = message.member.guild.owner.displayName
-      message.channel.send("You are not in the list of users to use RiceBot." +
-        " Please contact " + owner)
-      break
     }
-
+  }
+  if (userFound === false) {
+    owner = message.member.guild.owner.displayName
+    message.channel.send("You are not in the list of users to use RiceBot." +
+      " Please contact " + owner)
   }
 }
