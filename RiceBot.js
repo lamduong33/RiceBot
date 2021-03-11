@@ -128,8 +128,14 @@ riceBot.on("message", (message) => {
   // Interpret different commands
   if (command == "settrack") {
     setTrackCommand(args, message);
+  } else if (command == "help"){
+    helpCommand(message);
   }
 });
+
+function helpCommand(message){
+  message.channel.send("")
+}
 
 /* setTrackCommand:
  * -----------------------------------------------------------------------------
@@ -229,7 +235,7 @@ function setTrackCommand(args, message) {
 function getChannelName(args) {
   channelName = ""
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
-    if ((args[commandIndex != "-s"]) && (args[commandIndex != "-v"])) {
+    if ((args[commandIndex] != "-s") && (args[commandIndex] != "-v")) {
       channelName += args[commandIndex]
       if (commandIndex !== args.length - 1)
         channelName += " "
