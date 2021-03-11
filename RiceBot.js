@@ -3,6 +3,7 @@ const Discord = require("discord.js");
 const { prefix, token } = require("./config.json");
 const ytdl = require("ytdl-core"); // For playing music on YT
 var fs = require("fs");
+const { userInfo } = require("os");
 
 // WELCOME TO THE RICE FIELDS
 var defaultGreeting = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
@@ -85,7 +86,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
           // Check to see if the user is in the list of users
           if (newState.member.id == user.id) {
             streamURL = user.tracks[0].track; // add default track first
-            streamOptions = {seek: user.tracks[0].seek, volume: user.tracks[0].volume};
+            streamOptions = { seek: user.tracks[0].seek, volume: user.tracks[0].volume };
             for (var j = 0; j < user.tracks.length; j++) {
               track = user.tracks[j]
               // Check current name to match with database ID
@@ -126,15 +127,45 @@ riceBot.on("message", (message) => {
   const command = args.shift().toLowerCase();
 
   // Interpret different commands
-  if (command == "settrack") {
+  if (command === "settrack") {
     setTrackCommand(args, message);
-  } else if (command == "help"){
+  } else if (command === "help") {
     helpCommand(message);
+  } else if (command === "reset") {
+    resetCommand(message)
   }
 });
 
-function helpCommand(message){
-  message.channel.send("")
+function helpCommand(message) {
+  message.channel.send("Tell Lam to implement this")
+}
+
+/* resetCommand:
+ * -----------------------------------------------------------------------------
+ * input: message -> Discord.Message
+ *
+ * Reset all the tracks to the default track
+ */
+function resetCommand(message) {
+  for (var userIndex = 0; userIndex < userDB.users.length; userIndex++) {
+    if (userDB.users[userIndex].id === message.author.id) {
+      newUserTrack = {
+        "channelName": "0", "track": defaultGreeting, "seek": 0,
+        "volume": 1
+      };
+      userDB.users[userIndex].tracks = [newUserTrack];
+
+      // Write to JSON
+      fs.writeFile(
+        "userDB.json",
+        JSON.stringify(userDB, null, 4),
+        function(err, result) {
+          if (err) console.log("error", err);
+        }
+      );
+    }
+  }
+  message.channel.send("You've successfully reset your tracks")
 }
 
 /* setTrackCommand:
@@ -234,14 +265,16 @@ function setTrackCommand(args, message) {
  */
 function getChannelName(args) {
   channelName = ""
+  // Start at 1 because args[0] is the URL
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
-    if ((args[commandIndex] != "-s") && (args[commandIndex] != "-v")) {
+    if ((args[commandIndex] != "-s") || (args[commandIndex] != "-v")) {
       channelName += args[commandIndex]
-      if (commandIndex !== args.length - 1)
-        channelName += " "
-    } else {
-      break
-    }
+      if (commandIndex !== args.length - 1) {
+        if ((args[commandIndex+1] == "-s") || (args[commandIndex+1] == "-v")) {
+          break;
+        } else { channelName += " "; }
+      }
+    } else { break; }
   }
   return channelName
 }
