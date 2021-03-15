@@ -267,14 +267,16 @@ function getChannelName(args) {
   channelName = ""
   // Start at 1 because args[0] is the URL
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
-    if ((args[commandIndex] != "-s") || (args[commandIndex] != "-v")) {
+    if ((args[commandIndex] == "-s") || (args[commandIndex] == "-v")) {
+      break;
+    } else {
       channelName += args[commandIndex]
       if (commandIndex !== args.length - 1) {
         if ((args[commandIndex+1] == "-s") || (args[commandIndex+1] == "-v")) {
           break;
         } else { channelName += " "; }
       }
-    } else { break; }
+    }
   }
   return channelName
 }
