@@ -133,6 +133,8 @@ riceBot.on("message", (message) => {
     helpCommand(message);
   } else if (command === "reset") {
     resetCommand(message)
+  } else if (command === "volume") {
+    message.channel.send(volumeCommand(args, message));
   }
 });
 
@@ -150,19 +152,13 @@ function resetCommand(message) {
   for (var userIndex = 0; userIndex < userDB.users.length; userIndex++) {
     if (userDB.users[userIndex].id === message.author.id) {
       newUserTrack = {
-        "channelName": "0", "track": defaultGreeting, "seek": 0,
+        "channelName": "Default", "track": defaultGreeting, "seek": 0,
         "volume": 1
       };
       userDB.users[userIndex].tracks = [newUserTrack];
 
       // Write to JSON
-      fs.writeFile(
-        "userDB.json",
-        JSON.stringify(userDB, null, 4),
-        function(err, result) {
-          if (err) console.log("error", err);
-        }
-      );
+      writeToJSON();
     }
   }
   message.channel.send("You've successfully reset your tracks")
@@ -179,7 +175,7 @@ function resetCommand(message) {
  */
 function setTrackCommand(args, message) {
   let streamURL = args[0];
-  let channelName = "0";
+  let channelName = "Default";
   startTime = 0; // in seconds
   volume = 1;
 
@@ -190,7 +186,7 @@ function setTrackCommand(args, message) {
   } else if (args.length >= 2) {
     channelName = getChannelName(args);
     if (channelName === "")
-      channelName = "0"
+      channelName = "Default"
     startTime = getStartPosition(args);
     volume = getVolume(args);
     if ((volume > 1) || (volume < 0)) {
@@ -237,15 +233,7 @@ function setTrackCommand(args, message) {
           "channelName": channelName, "track": streamURL,
           "seek": startTime, "volume": volume
         });
-
-      // Write to JSON file
-      fs.writeFile(
-        "userDB.json",
-        JSON.stringify(userDB, null, 4),
-        function(err, result) {
-          if (err) console.log("error", err);
-        }
-      );
+      writeToJSON();
       break;
     }
   }
@@ -256,12 +244,24 @@ function setTrackCommand(args, message) {
   }
 }
 
+// Write to JSON file
+function writeToJSON() {
+  // Write to JSON file
+  fs.writeFile(
+    "userDB.json",
+    JSON.stringify(userDB, null, 4),
+    function(err, result) {
+      if (err) console.log("error", err);
+    }
+  );
+}
+
 /* getChannelName
  *------------------------------------------------------------------------------
  * input: args
  *
  * Return the channel name of the string. If it encounters a flag such as -s or
- * -v, it will end
+ * -v, it will end. This is only used for setTrackCommand()
  */
 function getChannelName(args) {
   channelName = ""
@@ -272,7 +272,7 @@ function getChannelName(args) {
     } else {
       channelName += args[commandIndex]
       if (commandIndex !== args.length - 1) {
-        if ((args[commandIndex+1] == "-s") || (args[commandIndex+1] == "-v")) {
+        if ((args[commandIndex + 1] == "-s") || (args[commandIndex + 1] == "-v")) {
           break;
         } else { channelName += " "; }
       }
@@ -285,7 +285,8 @@ function getChannelName(args) {
  *------------------------------------------------------------------------------
  * input: args
  *
- * Return the volume from the command. It searches for the '-v' flag
+ * Return the volume from the command. It searches for the '-v' flag. This is
+ * used by the setTrackCommand()
  */
 function getVolume(args) {
   volume = 1
@@ -314,4 +315,79 @@ function getStartPosition(args) {
     }
   }
   return seek
+}
+
+/* volumeCommand()
+ *--------------------------------------------------------------------------------
+ * input: args
+ *
+ * Show the current volume. If there's a number that follows, then change that.
+ */
+function volumeCommand(args, message) {
+  let response = "";
+  let wrongFormat = "Please use the correct format: !volume [channel name]"
+    + " [0 <= volume level <= 1] ";
+
+  // If there are no arguments, just tell the user what their volume is
+  if (args.length === 0) {
+    for (var index = 0; index < userDB.users.length; index++) {
+      if (message.author.id === userDB.users[index].id) {
+        response += "Your current volume level is: \n";
+        for (var j = 0; j < userDB.users[index].tracks.length; j++) {
+          let track = userDB.users[index].tracks[j];
+          if (track.channelName === "Default") {
+            response += "Default: " + track.volume + "\n";
+          } else {
+            response += track.channelName + ": " + track.volume + "\n";
+          }
+        }
+        break; // break the loop if the user is found
+      }
+      response = "You are not on the list of users to use RiceBot. Please contact "
+        + "server admin."
+    }
+  } else {
+    let newVolumeString = args[args.length - 1];
+    let newVolume = parseFloat(newVolumeString);
+    let channelName = "";
+    // Get channel name
+    for (var k = 0; k < args.length - 1; k++) {
+      channelName += args[k];
+      if (k != args.length - 2) {
+        channelName += " ";
+      }
+    }
+    // Last argument has to be an int between 0 and 1.
+    if (!isNaN(parseFloat(newVolume)) && (newVolume >= 0 && newVolume <= 1)) {
+      for (var i = 0; i < userDB.users.length; i++) { // search users
+        if (message.author.id === userDB.users[i].id) { // if user found
+          for (var j = 0; j < userDB.users[i].tracks.length; j++) {
+            if (channelName === userDB.users[i].tracks[j].channelName) {
+              userDB.users[i].tracks[j].volume = newVolume;
+              response = "You've set your volume in " + channelName + " to " +
+                newVolume;
+              writeToJSON();
+              break;
+            }
+            response = "The channel, " + channelName + "was not found. Please try"
+              + " again or type in !volume to show list of channels and their"
+              + " corresponding volume.";
+          }
+          break;
+        }
+        response = "You are not on the list of users to use RiceBot. Please contact "
+          + "server admin."
+      }
+    } else {
+      response = "The last argument is required to be a number between 0 and"
+        + " 1, e.g. 0.88\n";
+      response += wrongFormat;
+    }
+  }
+  return response;
+}
+
+// TODO: Implement a function that allows user to cleanup channels that don't exist
+function cleanUp() {
+
 }
