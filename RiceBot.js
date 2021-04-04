@@ -344,9 +344,9 @@ function volumeCommand(args, message) {
         }
         break; // break the loop if the user is found
       }
+      response = "You are not on the list of users to use RiceBot. Please contact "
+          + "server admin."
     }
-    response = "You are not on the list of users to use RiceBot. Please contact "
-      + "server admin."
   } else {
     let newVolumeString = args[args.length - 1];
     let newVolume = parseFloat(newVolumeString);
