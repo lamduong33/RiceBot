@@ -1,3 +1,5 @@
+// RiceBot v1.0.2
+// Author: Lam Duong
 // Dependencies listing
 const Discord = require("discord.js");
 const { prefix, token } = require("./config.json");
@@ -15,7 +17,6 @@ riceBot.login(token);
 // Get list of tracks URLS
 let rawUsersList = fs.readFileSync("userDB.json");
 let userDB = JSON.parse(rawUsersList);
-
 
 // get list of users who do not have welcome messages, such as bots
 let botsListFile = fs.readFileSync("botslist.json");
@@ -343,9 +344,9 @@ function volumeCommand(args, message) {
         }
         break; // break the loop if the user is found
       }
-      response = "You are not on the list of users to use RiceBot. Please contact "
-        + "server admin."
     }
+    response = "You are not on the list of users to use RiceBot. Please contact "
+      + "server admin."
   } else {
     let newVolumeString = args[args.length - 1];
     let newVolume = parseFloat(newVolumeString);
