@@ -333,7 +333,7 @@ function volumeCommand(args, message) {
   if (args.length === 0) {
     for (var index = 0; index < userDB.users.length; index++) {
       if (message.author.id === userDB.users[index].id) {
-        response += "Your current volume level is: \n";
+        response = "Your current volume level is: \n";
         for (var j = 0; j < userDB.users[index].tracks.length; j++) {
           let track = userDB.users[index].tracks[j];
           if (track.channelName === "Default") {
