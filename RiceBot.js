@@ -140,7 +140,22 @@ riceBot.on("message", (message) => {
 });
 
 function helpCommand(message) {
-  message.channel.send("Tell Lam to implement this")
+  let message = "RiceBot - a simple bot that allows you to have custom intros" +
+    " whenever you join a voice channel.\n";
+  let divider = "-------------------------------------------------------\n"
+  let setTrack = "**!settrack**: set a track for your introduction. This" +
+    " only works with valid YouTube links. It will also play an introduction " +
+    "track for 5 seconds\n" +
+    "*Format*: !settrack [YouTubeURL] [channel name] -v" +
+    " [volume level] -s [starting position in seconds]\n *Note:*" +
+    " every field is optional except for YouTubeURL.\n" +
+    "Example: !settrack SomeYouTubeURL -> This will set your default"
+    + " track that will be played in every channel.\n"
+    + "Example 2: !settrack SomeYouTubeURL !settrack"
+    + " https://youtu.be/3WAOxKOmR90 Some Channel Name -v 0.1 -s 1 -> this"
+    + " will set your track to a YT link in Some Channel Name to have a 10%"
+    + " volume and starting at 1 second\n"
+  return message;
 }
 
 /* resetCommand:
@@ -345,7 +360,7 @@ function volumeCommand(args, message) {
         break; // break the loop if the user is found
       }
       response = "You are not on the list of users to use RiceBot. Please contact "
-          + "server admin."
+        + "server admin."
     }
   } else {
     let newVolumeString = args[args.length - 1];
