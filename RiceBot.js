@@ -111,7 +111,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
           voiceChannel.leave();
         });
 
-        setTimeout(function () {
+        setTimeout(function() {
           voiceChannel.leave();
         }, 10000);
       })
@@ -155,12 +155,16 @@ riceBot.on("message", (message) => {
 
 function helpCommand(args) {
   let result = ""
-  let helpMessage =
+  const argSet = new Set(); // to prevent users from spamming multiple args.
+  let about =
     "- This is a simple bot that allows you to have custom intros" +
     " whenever you join a voice channel.\n\n";
+  let format =
     "Please type in an argument after the !help command for" +
-    " help with specific functions, such as: ``` !help settrack volume" +
-    "````";
+    " help with specific functions. For example, the command below will show" +
+    " help for using !settrack and !volume commands: ```!help settrack" +
+    " volume```Possible arguments are: \n- all\n- settrack\n- volume\n-" +
+    " suppress\n- suppressed\n ";
   let divider =
     "-------------------------------------------------------" +
     "-------------------------------------------------------\n";
@@ -181,13 +185,43 @@ function helpCommand(args) {
   let volume =
     "**!volume**: sees what your current volume is in different voice" +
     " channels and allows you to set volume level.\n" +
-    "Format: *!volume [channel name] [new volume]*  **Note: fields are" +
-    " optional*\n Example: To see the volume of your current channels:" +
+    "Format: *!volume [channel name] [new volume]*  **Note**: fields are" +
+    " optional\n\n Example: To see the volume of your current channels:" +
     "```!volume``` Example 2: To set the volume in Some Channel to 50%" +
     "```!volume Some Channel 0.5```";
 
-  if (args.includes("all")) {
-    result += helpMessage + divider + setTrack + divider + volume;
+  let suppress = "**!suppress**: toggles whether you want to have an intro or"
+    + " not. This function will store you in the database of suppressed users"
+    + " or it will remove you, depending on your status. Remember that this is "
+    + "a toggling action. Use the !suppressed command to check if you are"
+    + " suppressed or not.\n"
+
+  let suppressed = "**!suppressed**: shows if you are suppressed or not. While"
+    + " being suppressed, you will not have a voice intro in voice channels.\n"
+
+  if (args.length === 0) {
+    result = about + format;
+  }
+  else {
+    for (var i = 0; i < args.length; i++) {
+      if (!argSet.has(args[i])) {
+        if (args[i] === "all") {
+          result = about + divider + setTrack + divider + volume
+            + divider + suppress + divider + suppressed;
+          break; // break if there's an "all" argument included
+        } else if (args[i] === "settrack") {
+          result += divider + setTrack;
+        } else if (args[i] === "volume") {
+          result += divider + volume;
+        } else if (args[i] === "suppress") {
+          result += divider + suppress;
+        } else if (args[i] === "suppressed") {
+          result += divider + suppressed;
+        }
+      }
+      argSet.add(args[i]);
+    }
+    if (result === "") { result = format; } // if no valid arguments provided.
   }
   return result;
 }
@@ -235,7 +269,7 @@ function setTrackCommand(args, message) {
   if (args.length === 0) {
     message.channel.send(
       'Please follow the format -> "URL" "Channels\'' +
-        ' Name". Type !help for usage and examples'
+      ' Name". Type !help for usage and examples'
     );
   } else if (args.length >= 2) {
     channelName = getChannelName(args);
@@ -296,8 +330,8 @@ function setTrackCommand(args, message) {
     owner = message.member.guild.owner.displayName;
     message.channel.send(
       "You are not in the list of users to use RiceBot." +
-        " Please contact " +
-        owner
+      " Please contact " +
+      owner
     );
   }
 }
@@ -308,7 +342,7 @@ function writeToJSON() {
   fs.writeFile(
     "userDB.json",
     JSON.stringify(userDB, null, 4),
-    function (err, result) {
+    function(err, result) {
       if (err) console.log("error", err);
     }
   );
@@ -479,7 +513,7 @@ function suppressCommand(args, authorID) {
   fs.writeFile(
     "suppressedUsers.json",
     JSON.stringify(suppressedUsers, null, 4),
-    function (err, result) {
+    function(err, result) {
       if (err) console.log("error", err);
     }
   );
@@ -487,4 +521,4 @@ function suppressCommand(args, authorID) {
 }
 
 // TODO: Implement a function that allows user to cleanup channels that don't exist
-function cleanUp() {}
+function cleanUp() { }
