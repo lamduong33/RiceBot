@@ -19,19 +19,19 @@ let rawUsersList = fs.readFileSync("userDB.json");
 let userDB = JSON.parse(rawUsersList);
 
 // get list of users who do not have welcome messages, such as bots
-let botsListFile = fs.readFileSync("botslist.json");
-let bots = JSON.parse(botsListFile);
+let suppressedUsersList = fs.readFileSync("suppressedUsers.json");
+let suppressedUsers = JSON.parse(suppressedUsersList);
 
 // get server settings
-let serverSettingsFile = fs.readFileSync("ricebotsettings.json")
-let serverSettings = JSON.parse(serverSettingsFile)
-let serverAdminID = serverSettings.admin
+let serverSettingsFile = fs.readFileSync("ricebotsettings.json");
+let serverSettings = JSON.parse(serverSettingsFile);
+let serverAdminID = serverSettings.admin;
 
-
-function inBotsList(memberID) {
-  // check to see if the user is in list of bots
-  for (var i = 0; i < bots.botsList.length; i++) {
-    if (memberID === bots.botsList[i].id) {
+function isSuppressed(memberID) {
+  // check to see if the user is in list of suppressed users
+  id = parseInt(memberID);
+  for (var i = 0; i < suppressedUsers.length; i++) {
+    if (id === suppressedUsers[i]) {
       return true;
     }
   }
@@ -52,7 +52,6 @@ riceBot.once("error", () => {
   console.log("error!!!");
 });
 
-
 // read commands from user messages
 riceBot.on("message", async (message) => {
   if (message.author.bot) return; // ignore message if it's from the bot
@@ -68,13 +67,12 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
   if (
     newState.channelID !== null &&
     oldState.channelID === null &&
-    inBotsList(newState.member.id) === false
+    isSuppressed(newState.member.id) === false
   ) {
     console.log(oldState.member.displayName + " joined the chat");
     var voiceChannel = newState.channel; // channel user just joined
 
     // Bot joins channel
-    // TODO: Add the ability to not play banned uses' sound clips
     voiceChannel
       .join()
       .then((connection) => {
@@ -83,13 +81,16 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
         let streamURL = "";
 
         for (var i = 0; i < userDB.users.length; i++) {
-          let user = userDB.users[i]
+          let user = userDB.users[i];
           // Check to see if the user is in the list of users
           if (newState.member.id == user.id) {
             streamURL = user.tracks[0].track; // add default track first
-            streamOptions = { seek: user.tracks[0].seek, volume: user.tracks[0].volume };
+            streamOptions = {
+              seek: user.tracks[0].seek,
+              volume: user.tracks[0].volume,
+            };
             for (var j = 0; j < user.tracks.length; j++) {
-              track = user.tracks[j]
+              track = user.tracks[j];
               // Check current name to match with database ID
               if (track.channelName == newState.channel.name) {
                 streamURL = track.track;
@@ -110,7 +111,7 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
           voiceChannel.leave();
         });
 
-        setTimeout(function() {
+        setTimeout(function () {
           voiceChannel.leave();
         }, 10000);
       })
@@ -131,31 +132,64 @@ riceBot.on("message", (message) => {
   if (command === "settrack") {
     setTrackCommand(args, message);
   } else if (command === "help") {
-    helpCommand(message);
+    message.channel.send(helpCommand(args));
   } else if (command === "reset") {
-    resetCommand(message)
+    resetCommand(message);
   } else if (command === "volume") {
     message.channel.send(volumeCommand(args, message));
+  } else if (command === "suppress") {
+    let userFound = suppressCommand(args, message.author.id);
+    if (userFound) {
+      message.channel.send("You are no longer suppressed. Whew.");
+    } else {
+      message.channel.send("You are now suppressed. Bye.");
+    }
+  } else if (command === "suppressed") {
+    if (isSuppressed(message.author.id) === true) {
+      message.channel.send("You are currently suppressed. Pew pew.");
+    } else {
+      message.channel.send("You are not suppressed. Have fun!");
+    }
   }
 });
 
-function helpCommand(message) {
-  let message = "RiceBot - a simple bot that allows you to have custom intros" +
-    " whenever you join a voice channel.\n";
-  let divider = "-------------------------------------------------------\n"
-  let setTrack = "**!settrack**: set a track for your introduction. This" +
+function helpCommand(args) {
+  let result = ""
+  let helpMessage =
+    "- This is a simple bot that allows you to have custom intros" +
+    " whenever you join a voice channel.\n\n";
+    "Please type in an argument after the !help command for" +
+    " help with specific functions, such as: ``` !help settrack volume" +
+    "````";
+  let divider =
+    "-------------------------------------------------------" +
+    "-------------------------------------------------------\n";
+  let setTrack =
+    "**!settrack**: sets a track for your introduction. This" +
     " only works with valid YouTube links. It will also play an introduction " +
-    "track for 5 seconds\n" +
-    "*Format*: !settrack [YouTubeURL] [channel name] -v" +
-    " [volume level] -s [starting position in seconds]\n *Note:*" +
-    " every field is optional except for YouTubeURL.\n" +
-    "Example: !settrack SomeYouTubeURL -> This will set your default"
-    + " track that will be played in every channel.\n"
-    + "Example 2: !settrack SomeYouTubeURL !settrack"
-    + " https://youtu.be/3WAOxKOmR90 Some Channel Name -v 0.1 -s 1 -> this"
-    + " will set your track to a YT link in Some Channel Name to have a 10%"
-    + " volume and starting at 1 second\n"
-  return message;
+    "track for roughly 10 seconds.\n" +
+    "Format: *!settrack [YouTubeURL] [channel name] -v*" +
+    " *[volume level] -s [starting position in seconds]*  **Note:**" +
+    " every field is optional except for YouTubeURL.\n\n" +
+    "Example: This will set a default track for you in every channel unless" +
+    " specified by other links." +
+    " ```!settrack https://youtu.be/3WAOxKOmR90``` " +
+    "Example 2: This will set your track to a YT link in Some Channel Name to" +
+    " have a 10% volume and starting at 1 second.\n" +
+    "```!settrack SomeYouTubeURL Some Channel Name -v 0.1 -s 1```\n";
+
+  let volume =
+    "**!volume**: sees what your current volume is in different voice" +
+    " channels and allows you to set volume level.\n" +
+    "Format: *!volume [channel name] [new volume]*  **Note: fields are" +
+    " optional*\n Example: To see the volume of your current channels:" +
+    "```!volume``` Example 2: To set the volume in Some Channel to 50%" +
+    "```!volume Some Channel 0.5```";
+
+  if (args.includes("all")) {
+    result += helpMessage + divider + setTrack + divider + volume;
+  }
+  return result;
 }
 
 /* resetCommand:
@@ -168,8 +202,10 @@ function resetCommand(message) {
   for (var userIndex = 0; userIndex < userDB.users.length; userIndex++) {
     if (userDB.users[userIndex].id === message.author.id) {
       newUserTrack = {
-        "channelName": "Default", "track": defaultGreeting, "seek": 0,
-        "volume": 1
+        channelName: "Default",
+        track: defaultGreeting,
+        seek: 0,
+        volume: 1,
       };
       userDB.users[userIndex].tracks = [newUserTrack];
 
@@ -177,7 +213,7 @@ function resetCommand(message) {
       writeToJSON();
     }
   }
-  message.channel.send("You've successfully reset your tracks")
+  message.channel.send("You've successfully reset your tracks");
 }
 
 /* setTrackCommand:
@@ -197,23 +233,23 @@ function setTrackCommand(args, message) {
 
   // Handle different arguments
   if (args.length === 0) {
-    message.channel.send("Please follow the format -> \"URL\" \"Channels'"
-      + " Name\". Type !help for usage and examples");
+    message.channel.send(
+      'Please follow the format -> "URL" "Channels\'' +
+        ' Name". Type !help for usage and examples'
+    );
   } else if (args.length >= 2) {
     channelName = getChannelName(args);
-    if (channelName === "")
-      channelName = "Default"
+    if (channelName === "") channelName = "Default";
     startTime = getStartPosition(args);
     volume = getVolume(args);
-    if ((volume > 1) || (volume < 0)) {
-      message.channel.send("Volume has to be between 0 and 1, try again")
+    if (volume > 1 || volume < 0) {
+      message.channel.send("Volume has to be between 0 and 1, try again");
     }
   }
 
-  userFound = false
+  userFound = false;
   // Search through list of user tracks
   for (var i = 0; i < userDB.users.length; i++) {
-
     user = userDB.users[i];
     userID = message.author.id;
 
@@ -244,19 +280,25 @@ function setTrackCommand(args, message) {
           found = true;
         }
       }
-      if (found === false) // If it's a new channel being inserted
+      if (found === false)
+        // If it's a new channel being inserted
         user.tracks.push({
-          "channelName": channelName, "track": streamURL,
-          "seek": startTime, "volume": volume
+          channelName: channelName,
+          track: streamURL,
+          seek: startTime,
+          volume: volume,
         });
       writeToJSON();
       break;
     }
   }
   if (userFound === false) {
-    owner = message.member.guild.owner.displayName
-    message.channel.send("You are not in the list of users to use RiceBot." +
-      " Please contact " + owner)
+    owner = message.member.guild.owner.displayName;
+    message.channel.send(
+      "You are not in the list of users to use RiceBot." +
+        " Please contact " +
+        owner
+    );
   }
 }
 
@@ -266,7 +308,7 @@ function writeToJSON() {
   fs.writeFile(
     "userDB.json",
     JSON.stringify(userDB, null, 4),
-    function(err, result) {
+    function (err, result) {
       if (err) console.log("error", err);
     }
   );
@@ -280,21 +322,23 @@ function writeToJSON() {
  * -v, it will end. This is only used for setTrackCommand()
  */
 function getChannelName(args) {
-  channelName = ""
+  channelName = "";
   // Start at 1 because args[0] is the URL
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
-    if ((args[commandIndex] == "-s") || (args[commandIndex] == "-v")) {
+    if (args[commandIndex] == "-s" || args[commandIndex] == "-v") {
       break;
     } else {
-      channelName += args[commandIndex]
+      channelName += args[commandIndex];
       if (commandIndex !== args.length - 1) {
-        if ((args[commandIndex + 1] == "-s") || (args[commandIndex + 1] == "-v")) {
+        if (args[commandIndex + 1] == "-s" || args[commandIndex + 1] == "-v") {
           break;
-        } else { channelName += " "; }
+        } else {
+          channelName += " ";
+        }
       }
     }
   }
-  return channelName
+  return channelName;
 }
 
 /* getVolume
@@ -305,16 +349,15 @@ function getChannelName(args) {
  * used by the setTrackCommand()
  */
 function getVolume(args) {
-  volume = 1
+  volume = 1;
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
     if (args[commandIndex] === "-v") {
       volume = Number(args[commandIndex + 1]);
       break;
     }
   }
-  return volume
+  return volume;
 }
-
 
 /* getVolume
  *------------------------------------------------------------------------------
@@ -323,14 +366,14 @@ function getVolume(args) {
  * Return the starting position from the command. It searches for the '-v' flag
  */
 function getStartPosition(args) {
-  seek = 0
+  seek = 0;
   for (var commandIndex = 1; commandIndex < args.length; commandIndex++) {
     if (args[commandIndex] === "-s") {
       seek = Number(args[commandIndex + 1]);
       break;
     }
   }
-  return seek
+  return seek;
 }
 
 /* volumeCommand()
@@ -341,8 +384,9 @@ function getStartPosition(args) {
  */
 function volumeCommand(args, message) {
   let response = "";
-  let wrongFormat = "Please use the correct format: !volume [channel name]"
-    + " [0 <= volume level <= 1] ";
+  let wrongFormat =
+    "Please use the correct format: !volume [channel name]" +
+    " [0 <= volume level <= 1] ";
 
   // If there are no arguments, just tell the user what their volume is
   if (args.length === 0) {
@@ -359,8 +403,9 @@ function volumeCommand(args, message) {
         }
         break; // break the loop if the user is found
       }
-      response = "You are not on the list of users to use RiceBot. Please contact "
-        + "server admin."
+      response =
+        "You are not on the list of users to use RiceBot. Please contact " +
+        "server admin.";
     }
   } else {
     let newVolumeString = args[args.length - 1];
@@ -374,36 +419,72 @@ function volumeCommand(args, message) {
       }
     }
     // Last argument has to be an int between 0 and 1.
-    if (!isNaN(parseFloat(newVolume)) && (newVolume >= 0 && newVolume <= 1)) {
-      for (var i = 0; i < userDB.users.length; i++) { // search users
-        if (message.author.id === userDB.users[i].id) { // if user found
+    if (!isNaN(parseFloat(newVolume)) && newVolume >= 0 && newVolume <= 1) {
+      for (var i = 0; i < userDB.users.length; i++) {
+        // search users
+        if (message.author.id === userDB.users[i].id) {
+          // if user found
           for (var j = 0; j < userDB.users[i].tracks.length; j++) {
             if (channelName === userDB.users[i].tracks[j].channelName) {
               userDB.users[i].tracks[j].volume = newVolume;
-              response = "You've set your volume in " + channelName + " to " +
-                newVolume;
+              response =
+                "You've set your volume in " + channelName + " to " + newVolume;
               writeToJSON();
               break;
             }
-            response = "The channel, " + channelName + "was not found. Please try"
-              + " again or type in !volume to show list of channels and their"
-              + " corresponding volume.";
+            response =
+              "The channel, " +
+              channelName +
+              "was not found. Please try" +
+              " again or type in !volume to show list of channels and their" +
+              " corresponding volume.";
           }
           break;
         }
-        response = "You are not on the list of users to use RiceBot. Please contact "
-          + "server admin."
+        response =
+          "You are not on the list of users to use RiceBot. Please contact " +
+          "server admin.";
       }
     } else {
-      response = "The last argument is required to be a number between 0 and"
-        + " 1, e.g. 0.88\n";
+      response =
+        "The last argument is required to be a number between 0 and" +
+        " 1, e.g. 0.88\n";
       response += wrongFormat;
     }
   }
   return response;
 }
 
-// TODO: Implement a function that allows user to cleanup channels that don't exist
-function cleanUp() {
+/*
+ * suppress():
+ * -----------------------------------------------------------------------------
+ * args: the arguments passed in by the user
+ * author: the user that sent this message
+ */
+function suppressCommand(args, authorID) {
+  let userFound = false;
+  let id = parseInt(authorID);
+  for (var i = 0; i < suppressedUsers.length; i++) {
+    if (id === suppressedUsers[i]) {
+      userFound = true;
 
+      // Remove user if found in list of suppressed users
+      suppressedUsers.splice(i, 1);
+      break;
+    }
+  }
+  if (!userFound) {
+    suppressedUsers.push(id);
+  }
+  fs.writeFile(
+    "suppressedUsers.json",
+    JSON.stringify(suppressedUsers, null, 4),
+    function (err, result) {
+      if (err) console.log("error", err);
+    }
+  );
+  return userFound;
 }
+
+// TODO: Implement a function that allows user to cleanup channels that don't exist
+function cleanUp() {}
