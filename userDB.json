@@ -1,0 +1,106 @@
+{
+    "users": [
+        {
+            "id": "255708899234021377",
+            "name": "Lam",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://youtu.be/ASX87zk5odQ",
+                    "seek": 0,
+                    "volume": 1
+                },
+                {
+                    "channelName": "Monster Hunter Only",
+                    "track": "https://youtu.be/XKdJ6DnPhzk",
+                    "seek": 5.5,
+                    "volume": 0.58213
+                }
+            ]
+        },
+        {
+            "id": "377249871629123584",
+            "name": "Dan",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://www.youtube.com/watch?v=J087UXUt6BM&ab_channel=Army4Life",
+                    "seek": 0,
+                    "volume": 1
+                }
+            ]
+        },
+        {
+            "id": "307296731241119744",
+            "name": "Thomas",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://www.youtube.com/watch?v=m3WIX1P_2AY",
+                    "seek": 0,
+                    "volume": 1
+                },
+                {
+                    "channelName": "Tarkov",
+                    "track": "https://www.youtube.com/watch?v=ta41xU-tkFA&ab_channel=MaiSentry",
+                    "seek": 0,
+                    "volume": 1
+                },
+                {
+                    "channelName": "Monster Hunter Only",
+                    "track": "https://www.youtube.com/watch?v=VAv8_I7e_CA",
+                    "seek": 0,
+                    "volume": 1
+                }
+            ]
+        },
+        {
+            "id": "152269792596721664",
+            "name": "Bobby",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://www.youtube.com/watch?v=h2dJ-JUzhVs",
+                    "seek": 51.5,
+                    "volume": 1
+                }
+            ]
+        },
+        {
+            "id": "349352752259792896",
+            "name": "Isaiah",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://www.youtube.com/watch?v=i8a3gjt_Ar0",
+                    "seek": 0,
+                    "volume": 1
+                }
+            ]
+        },
+        {
+            "id": "231486362237272065",
+            "name": "Matthew Johnson",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://www.youtube.com/watch?v=heLL1ExEzQA&ab_channel=mipuri",
+                    "seek": 0,
+                    "volume": 1
+                }
+            ]
+        },
+        {
+            "id": "159430981697273856",
+            "name": "Kevin Ly",
+            "tracks": [
+                {
+                    "channelName": "Default",
+                    "track": "https://youtu.be/scytYIenltc",
+                    "seek": 0,
+                    "volume": 1
+                }
+            ]
+        }
+    ]
+}
