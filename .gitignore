@@ -1,7 +1,8 @@
+.gitignore
 node_modules
 tags
 config.json
 .eslintrc.json
-.logs
-package.json
-package-lock.json
+./.logs
+./package.json
+./package-lock.json
