@@ -6,15 +6,9 @@
             "tracks": [
                 {
                     "channelName": "Default",
-                    "track": "https://youtu.be/ASX87zk5odQ",
+                    "track": "https://www.youtube.com/watch?v=i8a3gjt_Ar0",
                     "seek": 0,
                     "volume": 1
-                },
-                {
-                    "channelName": "Monster Hunter Only",
-                    "track": "https://youtu.be/XKdJ6DnPhzk",
-                    "seek": 5.5,
-                    "volume": 0.58213
                 }
             ]
         },
@@ -24,7 +18,7 @@
             "tracks": [
                 {
                     "channelName": "Default",
-                    "track": "https://www.youtube.com/watch?v=J087UXUt6BM&ab_channel=Army4Life",
+                    "track": "https://www.youtube.com/watch?v=5_pxKIoO5UQ",
                     "seek": 0,
                     "volume": 1
                 }
