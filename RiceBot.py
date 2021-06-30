@@ -19,24 +19,28 @@ defaultURL = "https://www.youtube.com/watch?v=HKtaHdA6IFc"
 logging.basicConfig(level=logging.INFO)
 
 # =====================================YTDL======================================
-youtube_dl.utils.bug_reports_message = lambda: ""
-ytdl_format_options = {
-    "format": "bestaudio/best",
-    "restrictfilenames": True,
-    "noplaylist": True,
-    "nocheckcertificate": True,
-    "ignoreerrors": False,
-    "logtostderr": False,
-    "quiet": True,
-    "no_warnings": True,
-    "default_search": "auto",
-    "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
-}
-ffmpeg_options = {"options": "-vn"}
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
-
-
 class YTDLSource(discord.PCMVolumeTransformer):
+    """ Class for the YTDL Source, such as a video"""
+    YTDL_OPTIONS = {
+        'format': 'bestaudio/best',
+        'extractaudio': True,
+        'audioformat': 'mp3',
+        'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+        'restrictfilenames': True,
+        'noplaylist': True,
+        'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'quiet': True,
+        'no_warnings': True,
+        'default_search': 'auto',
+        'source_address': '0.0.0.0',
+    }
+
+    FFMPEG_OPTIONS = {
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+        'options': '-vn',
+    }
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
         self.data = data
@@ -60,9 +64,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
 # ======================================MUSIC======================================
 
 
-# Music class inherits from Cog. A cog is just a collection of commands and
-# event listeners
 class Music(commands.Cog):
+    """Music class inherits from Cog. A cog is just a collection of commands and
+    event listeners."""
     def __init__(self, bot):
         self.bot = bot
 
@@ -86,29 +90,24 @@ class Music(commands.Cog):
     @commands.command()
     async def stream(self, ctx, *, url):
         """Streams from a url (same as yt, but doesn't predownload)"""
-
         async with ctx.typing():
             player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
             ctx.voice_client.play(
                 player, after=lambda e: print("Player error: %s" % e) if e else None
             )
-
         await ctx.send("Now playing: {}".format(player.title))
 
     @commands.command()
     async def volume(self, ctx, volume: int):
         """Changes the player's volume"""
-
         if ctx.voice_client is None:
             return await ctx.send("Not connected to a voice channel.")
-
         ctx.voice_client.source.volume = volume / 100
         await ctx.send("Changed volume to {}%".format(volume))
 
     @commands.command()
     async def stop(self, ctx):
         """Stops and disconnects the bot from voice"""
-
         await ctx.voice_client.disconnect()
 
 
@@ -118,7 +117,7 @@ async def on_ready():
     print("Logged in as {0} ({0.id})".format(ricebot.user))
     print("------")
 
-ricebot.add_cog(Music(ricebot)) # Add cog
+ricebot.add_cog(Music(ricebot)) # Add music cog
 
 @ricebot.event
 async def on_voice_state_update(
@@ -129,8 +128,8 @@ async def on_voice_state_update(
         print("{} joined!".format(member.display_name))
 
         # Joins the channel
+        await after.channel.connect()
         player = await YTDLSource.from_url(defaultURL, loop=ricebot.loop)
-        print(member.guild)
         member.guild.voice_client.play(
             player, after=lambda e: print("Player error: %s" % e) if e else None
         )
