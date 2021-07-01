@@ -3,13 +3,13 @@ from discord.ext import commands
 import os
 import logging
 import pdb  # for debugging
-#from dotenv import load_dotenv  # --require=dotenv/config
+from dotenv import load_dotenv  # --require=dotenv/config
 import youtube_dl
 import asyncio
 
 # ===================================BOT SETUP===================================
-# load_dotenv()
-# DISCORD_TOKEN = os.getenv("discord_token")
+load_dotenv()
+DISCORD_TOKEN = os.getenv("discord_token")
 intents = discord.Intents().all()
 intents.members = True
 ricebot = commands.Bot(command_prefix=commands.when_mentioned_or("!"), intents=intents)
@@ -130,6 +130,7 @@ async def on_voice_state_update(
         await after.channel.connect()
 
         # Play the music
+        # TODO: voice_client is null?
         player = await YTDLSource.from_url(defaultURL, loop=ricebot.loop)
         member.guild.voice_client.play(
             player, after=lambda e: print("Player error: %s" % e) if e else None
@@ -140,5 +141,4 @@ async def on_voice_state_update(
         print("{} left!".format(member.display_name))
 
 if __name__ == "__main__":
-    #ricebot.run(DISCORD_TOKEN)
-    ricebot.run()
+    ricebot.run(DISCORD_TOKEN)
