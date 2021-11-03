@@ -15,15 +15,15 @@ const riceBot = new Discord.Client();
 riceBot.login(token);
 
 // Get list of tracks URLS
-let rawUsersList = fs.readFileSync("../json/userDB.json");
+let rawUsersList = fs.readFileSync("json/userDB.json");
 let userDB = JSON.parse(rawUsersList);
 
 // get list of users who do not have welcome messages, such as bots
-let suppressedUsersList = fs.readFileSync("../json/suppressedUsers.json");
+let suppressedUsersList = fs.readFileSync("json/suppressedUsers.json");
 let suppressedUsers = JSON.parse(suppressedUsersList);
 
 // get server settings
-let serverSettingsFile = fs.readFileSync("../json/ricebotsettings.json");
+let serverSettingsFile = fs.readFileSync("json/ricebotsettings.json");
 let serverSettings = JSON.parse(serverSettingsFile);
 let serverAdminID = serverSettings.admin;
 
