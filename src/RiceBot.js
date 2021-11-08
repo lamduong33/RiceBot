@@ -1,7 +1,7 @@
-// RiceBot v1.0.2
 // Author: Lam Duong
+
 // Dependencies listing
-const Discord = require("discord.js");
+const { Discord, Intents } = require("discord.js");
 const { prefix, token } = require("../json/config.json");
 const ytdl = require("ytdl-core"); // For playing music on YT
 var fs = require("fs");
@@ -11,7 +11,11 @@ const { userInfo } = require("os");
 var defaultGreeting = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
 
 // Login and authenticate BOT
-const riceBot = new Discord.Client();
+const riceBot = new Discord.Client(
+{
+  intents: [Intents.FLAGS.GUILDS]
+});
+
 riceBot.login(token);
 
 // Get list of tracks URLS
