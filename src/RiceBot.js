@@ -1,20 +1,16 @@
 // Author: Lam Duong
 
 // Dependencies listing
-const { Discord, Intents } = require("discord.js");
+const { Client, Intents } = require("discord.js");
 const { prefix, token } = require("../userSettings/config.json");
 const ytdl = require("ytdl-core"); // For playing music on YT
 var fs = require("fs");
 const { userInfo } = require("os");
 
-// WELCOME TO THE RICE FIELDS
 var defaultGreeting = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
 
 // Login and authenticate BOT
-const riceBot = new Discord.Client(
-{
-  intents: [Intents.FLAGS.GUILDS]
-});
+const riceBot = new Client({ intents: [Intents.FLAGS.GUILDS] });
 
 riceBot.login(token);
 
