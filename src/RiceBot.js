@@ -1,6 +1,6 @@
 // Require the necessary discord.js classes
 const { Client, IntentsBitField, GatewayIntentBits } = require('discord.js');
-const { prefix, token } = require('../config.json');
+const { token } = require('../config.json');
 const ytdl = require("ytdl-core"); // For playing music on YT
 
 // NOTE: Add/remove intents HERE.
