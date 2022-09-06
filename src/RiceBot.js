@@ -19,6 +19,7 @@ riceBotIntents.add(
 );
 
 const riceBot = new Client({ intents: riceBotIntents });
+riceBot.login(token);
 
 // The default message
 // const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
@@ -71,6 +72,3 @@ riceBot.on("voiceStateUpdate", (oldState, newState) => {
         console.log(newState.member.displayName + " left the chat");
     }
 });
-
-// Login to Discord with your client's token
-riceBot.login(token);
