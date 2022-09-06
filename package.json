@@ -5,6 +5,7 @@
   "main": "RiceBot.js",
   "dependencies": {
     "@discordjs/opus": "^0.6.0",
+    "@discordjs/rest": "^1.1.0",
     "@discordjs/voice": "^0.11.0",
     "bufferutil": "^4.0.6",
     "discord.js": "^14.3.0",
