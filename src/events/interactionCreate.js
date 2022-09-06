@@ -37,7 +37,7 @@ module.exports = {
           `${time.getUTCHours()}:${time.getUTCMinutes()}:${time.getUTCSeconds()}`
           + ` on ${getDayOfTheWeek(time.getUTCDay())}-${time.getUTCDate()}`
           + `/${time.getUTCMonth()}/${time.getUTCFullYear()} UTC`;
-    const result = `${userAction} at ${currentTime}`;
+    const result = `${userAction} at ${currentTime}\n`;
     fs.writeFile(logFile, result, { flag: 'a+' }, err => {});
   },
 };
