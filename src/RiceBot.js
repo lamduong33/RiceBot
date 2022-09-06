@@ -28,15 +28,36 @@ riceBot.once('ready', () => {
     console.log('Ready!');
 });
 
-// Running commands for the bot
+// Parsing commands for the bot
 riceBot.commands = new Collection(); // Collection is a better Map class.
 const commandsPath = path.join(__dirname, "commands");
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
+    // Set a new item in the Collection
+    // With the key as the command name and the value as the exported module
     riceBot.commands.set(command.data.name, command);
 }
+
+/**
+ * Handles the slash commands given to RiceBot by the user.*/
+riceBot.on("interactionCreate", async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = interaction.client.commands.get(interaction.commandName);
+    if (!command) return; // command is undefined when it's not a command
+    try {
+        await command.execute(interaction);
+    }
+    catch (error) {
+        console.error(error);
+        await interaction.reply({
+            content: `Couldn't execute ${interaction.commandName}`,
+            ephemeral: true,
+        });
+    }
+});
 
 /**
  * Greet the user here.*/
