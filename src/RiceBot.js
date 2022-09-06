@@ -4,7 +4,7 @@ const { Client, IntentsBitField, Collection } = require('discord.js');
 const { token } = require('../config.json');
 const fs = require("node:fs"); // Node's native file system module
 const path = require("node:path"); // Nodes' native path utility module
-// const ytdl = require("ytdl-core"); // For playing music on YT
+const ytdl = require("ytdl-core"); // For playing music on YT
 
 // NOTE: Add/remove intents HERE.
 // For a list of intents, see:
@@ -15,6 +15,7 @@ riceBotIntents.add(
     IntentsBitField.Flags.GuildPresences,
     IntentsBitField.Flags.GuildMembers,
     IntentsBitField.Flags.GuildMessages,
+    IntentsBitField.Flags.GuildVoiceStates,
     IntentsBitField.Flags.MessageContent,
 );
 
@@ -65,18 +66,5 @@ riceBot.on("interactionCreate", async interaction => {
             content: `Couldn't execute ${interaction.commandName}`,
             ephemeral: true,
         });
-    }
-});
-
-/**
- * Greet the user here.*/
-riceBot.on("voiceStateUpdate", (oldState, newState) => {
-    // Check if a new user has joined the channel due to channel's state change.
-    console.log(newState);
-    if (newState.channelId !== null && oldState.channelId === null) {
-        console.log(oldState.member.displayName + " joined the chat");
-    }
-    else if (newState.channelId === null && oldState.channelId !== null) {
-        console.log(newState.member.displayName + " left the chat");
     }
 });
