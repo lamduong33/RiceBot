@@ -1,7 +1,9 @@
 // @ts-nocheck
 // Require the necessary discord.js classes
-const { Client, IntentsBitField } = require('discord.js');
+const { Client, IntentsBitField, Collection } = require('discord.js');
 const { token } = require('../config.json');
+const fs = require("node:fs"); // Node's native file system module
+const path = require("node:path"); // Nodes' native path utility module
 // const ytdl = require("ytdl-core"); // For playing music on YT
 
 // NOTE: Add/remove intents HERE.
@@ -26,16 +28,15 @@ riceBot.once('ready', () => {
     console.log('Ready!');
 });
 
-riceBot.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-
-    const { commandName } = interaction;
-
-    if (commandName === 'marco') {
-        await interaction.reply('Pong!');
-    }
-});
-
+// Running commands for the bot
+riceBot.commands = new Collection(); // Collection is a better Map class.
+const commandsPath = path.join(__dirname, "commands");
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    riceBot.commands.set(command.data.name, command);
+}
 
 /**
  * Greet the user here.*/
