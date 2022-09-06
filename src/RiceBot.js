@@ -24,11 +24,6 @@ riceBot.login(token);
 // The default message
 // const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
 
-// When the client is ready, run this code (only once)
-riceBot.once('ready', () => {
-    console.log('Ready!');
-});
-
 // Parsing commands for the bot
 riceBot.commands = new Collection(); // Collection is a better Map class.
 const commandsPath = path.join(__dirname, "commands");
@@ -39,6 +34,19 @@ for (const file of commandFiles) {
     // Set a new item in the Collection
     // With the key as the command name and the value as the exported module
     riceBot.commands.set(command.data.name, command);
+}
+
+// Parsing events for the bot
+const eventsPath = path.join(__dirname, "events");
+const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith(".js"));
+for (const eventFile of eventFiles) {
+    const eventPath = path.join(eventsPath, eventFile);
+    const event = require(eventPath);
+    if (event.once) {
+        riceBot.once(event.name, (...args) => event.execute(...args));
+    } else {
+        riceBot.on(event.name, (...args) => event.execute(...args));
+    }
 }
 
 /**
