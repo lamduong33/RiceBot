@@ -1,7 +1,7 @@
 // This event listener will simply log any commands the users pass in.
 const fs = require("node:fs");
 const path = require("node:path");
-const logFile = path.join(__dirname, "../..", "commands.log")
+const logFile = path.join(__dirname, "../../logs", "commands.log")
 const time = new Date();
 
 
@@ -38,6 +38,6 @@ module.exports = {
           + ` on ${getDayOfTheWeek(time.getUTCDay())}-${time.getUTCDate()}`
           + `/${time.getUTCMonth()}/${time.getUTCFullYear()} UTC`;
     const result = `${userAction} at ${currentTime}`;
-    console.log(`${result} > ${logFile}`);
+    fs.writeFile(logFile, result, { flag: 'a+' }, err => {});
   },
 };
