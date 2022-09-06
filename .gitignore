@@ -18,3 +18,4 @@ yarn-error.log*
 # config.json is sensitive, not puting on git
 userSettings/*
 jsconfig.json
+config.json
