@@ -16,8 +16,6 @@
       }
     ],
     "brace-style": [
-      "error",
-      "stroustrup",
       {
         "allowSingleLine": true
       }
