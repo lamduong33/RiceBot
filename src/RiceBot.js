@@ -1,7 +1,8 @@
+// @ts-nocheck
 // Require the necessary discord.js classes
-const { Client, IntentsBitField, GatewayIntentBits } = require('discord.js');
+const { Client, IntentsBitField } = require('discord.js');
 const { token } = require('../config.json');
-const ytdl = require("ytdl-core"); // For playing music on YT
+// const ytdl = require("ytdl-core"); // For playing music on YT
 
 // NOTE: Add/remove intents HERE.
 // For a list of intents, see:
@@ -13,32 +14,40 @@ riceBotIntents.add(
     IntentsBitField.Flags.GuildMembers,
     IntentsBitField.Flags.GuildMessages,
     IntentsBitField.Flags.MessageContent,
-)
+);
 
 const riceBot = new Client({ intents: riceBotIntents });
 
 // The default message
-const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
+// const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
 
 // When the client is ready, run this code (only once)
 riceBot.once('ready', () => {
-	console.log('Ready!');
+    console.log('Ready!');
+});
+
+riceBot.on('interactionCreate', async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const { commandName } = interaction;
+
+    if (commandName === 'marco') {
+        await interaction.reply('Pong!');
+    }
 });
 
 
-/* Where the magic happens. This allows the bot to listen on the state of the
- * voice channel. Once it gets updated, we will then check the new state and see
- * who joins, then play the track.
- */
+/**
+ * Greet the user here.*/
 riceBot.on("voiceStateUpdate", (oldState, newState) => {
-	// Check if a new user has joined the channel due to channel's state change.
-	console.log(newState)
-	if (newState.channelId !== null && oldState.channelId === null) {
-		console.log(oldState.member.displayName + " joined the chat");
-		let voiceChannel = newState.channel; // channel user just joined
-	} else if (newState.channelId === null && oldState.channelId !== null) {
-		console.log(newState.member.displayName + " left the chat");
-	}
+    // Check if a new user has joined the channel due to channel's state change.
+    console.log(newState);
+    if (newState.channelId !== null && oldState.channelId === null) {
+        console.log(oldState.member.displayName + " joined the chat");
+    }
+    else if (newState.channelId === null && oldState.channelId !== null) {
+        console.log(newState.member.displayName + " left the chat");
+    }
 });
 
 // Login to Discord with your client's token
