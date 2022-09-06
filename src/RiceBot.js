@@ -22,9 +22,6 @@ riceBotIntents.add(
 const riceBot = new Client({ intents: riceBotIntents });
 riceBot.login(token);
 
-// The default message
-// const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=i8a3gjt_Ar0";
-
 // Parsing commands for the bot
 riceBot.commands = new Collection(); // Collection is a better Map class.
 const commandsPath = path.join(__dirname, "commands");
