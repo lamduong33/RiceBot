@@ -11,7 +11,6 @@ module.exports = {
   async execute(oldState, newState) {
     // If user has entered the chat
     if (newState.channelId !== null && oldState.channelId === null) {
-      console.log(oldState.member.displayName + " joined the chat");
       const botVoice = newState.channel;
       const connection = joinVoiceChannel({
         channelId: botVoice.id,
@@ -42,9 +41,6 @@ module.exports = {
           console.error(error);
         }
       });
-    }
-    else if (newState.channelId === null && oldState.channelId !== null) {
-      console.log(newState.member.displayName + " left the chat");
     }
   },
 };
