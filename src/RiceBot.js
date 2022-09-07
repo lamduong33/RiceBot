@@ -4,7 +4,6 @@ const { Client, IntentsBitField, Collection } = require('discord.js');
 const { token } = require('../config.json');
 const fs = require("node:fs"); // Node's native file system module
 const path = require("node:path"); // Nodes' native path utility module
-const ytdl = require("ytdl-core"); // For playing music on YT
 
 // NOTE: Add/remove intents HERE.
 // For a list of intents, see:

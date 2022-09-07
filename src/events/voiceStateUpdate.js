@@ -1,8 +1,6 @@
 // This file handles the detection of user leaving and entering the voice chat.
-const ytdl = require("ytdl-core"); // For playing music on YT
-const { joinVoiceChannel, VoiceConnectionStatus, createAudioPlayer, createAudioResource, StreamType } = require('@discordjs/voice');
-const streamOptions = { filter: "audioonly", seek: 0, volume: 1 };
-
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, NoSubscriberBehavior } = require('@discordjs/voice');
+const play = require('play-dl');
 
 // The default message
 const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=Y4ket21Tg6w";
@@ -10,7 +8,7 @@ const welcomeToTheRiceFields = "https://www.youtube.com/watch?v=Y4ket21Tg6w";
 module.exports = {
   name: "voiceStateUpdate",
   once: false,
-  execute(oldState, newState) {
+  async execute(oldState, newState) {
     // If user has entered the chat
     if (newState.channelId !== null && oldState.channelId === null) {
       console.log(oldState.member.displayName + " joined the chat");
@@ -20,14 +18,18 @@ module.exports = {
         guildId: botVoice.guildId,
         adapterCreator: botVoice.guild.voiceAdapterCreator
       })
+      let stream = await play.stream(welcomeToTheRiceFields)
+      let resource = createAudioResource(stream.stream, {
+        inputType: stream.type
+      })
 
-      // Play the stream here
-      const stream = ytdl(welcomeToTheRiceFields, {highWaterMark: 1 << 25,
-                                                   filter: "audioonly"});
-      const resource = createAudioResource(stream, { inputType: StreamType.Opus })
-      const player = createAudioPlayer();
-      connection.subscribe(player);
+      let player = createAudioPlayer({
+        behaviors: {
+          noSubscriber: NoSubscriberBehavior.Play
+        }
+      })
       player.play(resource)
+      connection.subscribe(player)
     }
     else if (newState.channelId === null && oldState.channelId !== null) {
       console.log(newState.member.displayName + " left the chat");
