@@ -9,7 +9,8 @@ module.exports = {
     let response = "Here are the list of RiceBot admins:\n";
     admins.forEach(adminId => {
       let user = interaction.guild.members.cache.get(adminId).user;
-      response += `${user.toString()}\n`;
+      //response += `${user.toString()}\n`;
+      response += `${user.username}#${user.discriminator}\n`;
     })
     await interaction.reply(response);
   },
