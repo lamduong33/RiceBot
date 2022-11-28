@@ -6,11 +6,11 @@ module.exports = {
     .setName("getadmins")
     .setDescription("Show the current list of admins that can administer RiceBot."),
   async execute(interaction) {
-    let response = "Here are the list of Ricebot admins:\n";
+    let response = "Here are the list of RiceBot admins:\n";
     admins.forEach(adminId => {
-      let adminName = interaction.guild.members.fetch(adminId).displayName;
-      response.concat(adminName);
-    });
+      let user = interaction.guild.members.cache.get(adminId).user;
+      response += `${user.toString()}\n`;
+    })
     await interaction.reply(response);
   },
 };
