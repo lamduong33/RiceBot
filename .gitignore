@@ -11,3 +11,5 @@ Cargo.lock
 # Others
 venv
 ricebot_token.txt
+*.gguf
+llama
