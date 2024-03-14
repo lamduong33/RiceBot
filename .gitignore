@@ -4,18 +4,10 @@
 *.log
 tmp/
 
-*.tern-port
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.tsbuildinfo
-.npm
-.eslintcache
+# Rust
+target
+Cargo.lock
 
-# Custom
-
-# config.json is sensitive, not puting on git
-userSettings/*
-jsconfig.json
-config.json
+# Others
+venv
+ricebot_token.txt

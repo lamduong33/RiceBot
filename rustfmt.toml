@@ -1,0 +1,5 @@
+# Default value: "SameLineWhere"
+# Possible values: "AlwaysNextLine", "PreferSameLine", "SameLineWhere"
+brace_style = "AlwaysNextLine"
+wrap_commentts = true
+comment_width = 80
