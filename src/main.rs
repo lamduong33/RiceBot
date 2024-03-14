@@ -7,6 +7,9 @@ use serenity::prelude::*;
 
 struct Handler;
 static TOKEN_LOCATION: &'static str = "ricebot_token.txt";
+static RICEBOT_SUMMON: &'static str = "oh ricebot of the lake";
+static RICEBOT_DESCRIPTION: &'static str = r#"Your name is RiceBot.
+You like to give out zen and taoist wisdom."#;
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -15,11 +18,21 @@ impl EventHandler for Handler {
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == "!ping" {
+        if msg
+            .content
+            .to_lowercase()
+            .starts_with(&RICEBOT_SUMMON.to_lowercase())
+        {
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
+            let message = &msg.content[RICEBOT_SUMMON.len()..];
+            let cleaned_message: String = message
+                .chars()
+                .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                .collect();
+
+            if let Err(why) = msg.channel_id.say(&ctx.http, cleaned_message).await {
                 println!("Error sending message: {why:?}");
             }
         }
