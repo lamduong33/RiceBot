@@ -14,10 +14,11 @@ async def callback(contents: str, user: str, instance: pn.chat.ChatInterface):
 
     if "mistral" not in llms:
         instance.placeholder_text = "Downloading model; please wait..."
+        # gpu_layers=0 for running on PCU
         llms["mistral"] = AutoModelForCausalLM.from_pretrained(
             repo_id,
             model_file=model_file,
-            gpu_layers=1,
+            gpu_layers=0,
         )
 
     llm = llms["mistral"]
