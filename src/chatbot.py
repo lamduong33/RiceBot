@@ -1,41 +1,32 @@
-#!/usr/bin/env python3
+from llama_cpp import Llama
 
-import panel as pn
-from ctransformers import AutoModelForCausalLM
+model_path = "../capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
 
-# Some const global variables
-repo_id = "TheBloke/Mistral-7B-Instruct-v0.1-GGUF"
-model_file = "mistral-7b-instruct-v0.1.Q4_K_M.gguf"
-
-# Start panel
-pn.extension()
-
-async def callback(contents: str, user: str, instance: pn.chat.ChatInterface):
-
-    if "mistral" not in llms:
-        instance.placeholder_text = "Downloading model; please wait..."
-        # gpu_layers=0 for running on PCU
-        llms["mistral"] = AutoModelForCausalLM.from_pretrained(
-            repo_id,
-            model_file=model_file,
-            gpu_layers=0,
-        )
-
-    llm = llms["mistral"]
-    # Streaming determines if each token will be printed out each time or not.
-    response = llm(contents, stream=True, max_new_tokens=1000)
-    message = ""
-
-    for token in response:
-        message += token
-        yield message
-
-llms = {}
-
-chat_interface = pn.chat.ChatInterface(callback=callback, callback_user="Mistral")
-
-chat_interface.send(
-    "Send a message to get a reply from Mistral!", user="System", respond=False
+# Set gpu_layers to the number of layers to offload to GPU. Set to 0 if no GPU acceleration is available on your system.
+llm = Llama(
+  model_path=model_path,  # Download the model file first
+  n_ctx=32768,  # The max sequence length to use - note that longer sequence lengths require much more resources
+  n_threads=8,            # The number of CPU threads to use, tailor to your system and the resulting performance
+  n_gpu_layers=35         # The number of layers to offload to GPU, if you have GPU acceleration available
 )
 
-chat_interface.servable()
+# Simple inference example
+output = llm(
+  "<|im_start|>system\n{system_message}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant", # Prompt
+  max_tokens=512,  # Generate up to 512 tokens
+  stop=["</s>"],   # Example stop token - not necessarily correct for this specific model! Please check before using.
+  echo=True        # Whether to echo the prompt
+)
+
+# Chat Completion API
+
+llm = Llama(model_path=model_path, chat_format="llama-2")  # Set chat_format according to the model you are using
+llm.create_chat_completion(
+    messages = [
+        {"role": "system", "content": "You are a story writing assistant."},
+        {
+            "role": "user",
+            "content": "Write a story about llamas."
+        }
+    ]
+)
