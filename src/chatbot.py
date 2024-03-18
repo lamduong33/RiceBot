@@ -1,32 +1,47 @@
-from llama_cpp import Llama
+import sys
+import os
 
-model_path = "../capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
+# LLM Magic
+from langchain_community.llms import LlamaCpp
+from langchain_core.messages import HumanMessage
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
-# Set gpu_layers to the number of layers to offload to GPU. Set to 0 if no GPU acceleration is available on your system.
-llm = Llama(
-  model_path=model_path,  # Download the model file first
-  n_ctx=32768,  # The max sequence length to use - note that longer sequence lengths require much more resources
-  n_threads=8,            # The number of CPU threads to use, tailor to your system and the resulting performance
-  n_gpu_layers=35         # The number of layers to offload to GPU, if you have GPU acceleration available
-)
+def find_root_dir():
+    current_dir = os.path.abspath(os.getcwd())
+    while True:
+        if '.git' in os.listdir(current_dir):
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+        if current_dir == os.path.dirname(current_dir):
+            break
+    return ""
 
-# Simple inference example
-output = llm(
-  "<|im_start|>system\n{system_message}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant", # Prompt
-  max_tokens=512,  # Generate up to 512 tokens
-  stop=["</s>"],   # Example stop token - not necessarily correct for this specific model! Please check before using.
-  echo=True        # Whether to echo the prompt
-)
+def main(prompt):
 
-# Chat Completion API
+    root_dir = find_root_dir()
+    capybara_path = root_dir + "/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
+    llama_path = root_dir + "/llama-2-7b-chat.Q4_K_M.gguf"
 
-llm = Llama(model_path=model_path, chat_format="llama-2")  # Set chat_format according to the model you are using
-llm.create_chat_completion(
-    messages = [
-        {"role": "system", "content": "You are a story writing assistant."},
-        {
-            "role": "user",
-            "content": "Write a story about llamas."
-        }
-    ]
-)
+    # Load the model
+    llm = LlamaCpp(
+        model_path=llama_path,
+        n_gpu_layers=40,
+        n_batch=512,
+        verbose=False,
+    )
+    answer = llm.invoke(
+        [
+            HumanMessage(
+                content=prompt
+            )
+        ]
+    )
+    print(answer)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit(1) # NOTE: Make sure to catch this as error code
+    prompt = sys.argv[1]
+    main(prompt)
+    sys.exit(0)
