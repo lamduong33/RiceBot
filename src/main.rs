@@ -31,18 +31,17 @@ impl EventHandler for Handler {
         let current_user_id = ctx.cache.current_user().id;
         if msg.mentions_user_id(current_user_id) {
             let id_string = current_user_id.to_string();
-            println!("UserID: {}", id_string);
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
             let message = &msg.content[0..];
             let re = Regex::new(r"<@\d+>").unwrap();
             let message_without_mention = re.replace(&message, "").to_string();
-            println!("{}", message_without_mention);
             let cleaned_message: String = message_without_mention.trim()
                 .chars()
                 .filter(|c| c.is_alphanumeric() || c.is_whitespace())
                 .collect();
+            println!("Query: {}", cleaned_message);
 
             let ricechat_path = "/home/lamanator/Desktop/Git/RiceBot/src/ricechat.sh";
             let quoted_message = format!("\"{}\"", cleaned_message);
