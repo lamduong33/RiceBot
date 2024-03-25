@@ -1,15 +1,21 @@
-use std::{env, fs};
+use std::env::current_dir;
+use std::path::PathBuf;
+use std::{env, fs, io};
 
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use std::process::Command;
 
 struct Handler;
+// Assuming that llama.cpp and model are in the same folder as Ricebot
 static TOKEN_LOCATION: &'static str = "ricebot_token.txt";
 static RICEBOT_SUMMON: &'static str = "oh ricebot of the lake";
-static RICEBOT_DESCRIPTION: &'static str = r#"Your name is RiceBot.
-You like to give out zen and taoist wisdom."#;
+
+fn get_current_working_dir() -> io::Result<PathBuf> {
+    env::current_dir()
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -18,11 +24,7 @@ impl EventHandler for Handler {
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg
-            .content
-            .to_lowercase()
-            .starts_with(&RICEBOT_SUMMON.to_lowercase())
-        {
+        if msg.mentions_user_id(ctx.cache.current_user().id) {
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
@@ -32,7 +34,19 @@ impl EventHandler for Handler {
                 .filter(|c| c.is_alphanumeric() || c.is_whitespace())
                 .collect();
 
-            if let Err(why) = msg.channel_id.say(&ctx.http, cleaned_message).await {
+            let ricechat_path = "/home/lamanator/Desktop/Git/RiceBot/src/ricechat.sh";
+            let quoted_message = format!("\"{}\"", cleaned_message);
+
+            let output = Command::new("sh")
+                .arg(ricechat_path)
+                .arg(quoted_message.clone())
+                .output()
+                .expect("failed to execute command");
+
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+            if let Err(why) = msg.channel_id.say(&ctx.http, stdout).await {
                 println!("Error sending message: {why:?}");
             }
         }
