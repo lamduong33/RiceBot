@@ -1,17 +1,22 @@
-use std::env::current_dir;
+// Environment and paths
 use std::path::PathBuf;
 use std::{env, fs, io};
 
+// Serenity - Discord bot functionalities
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+
+// For running commands
 use std::process::Command;
+
+// Regex
+use regex::Regex;
 
 struct Handler;
 // Assuming that llama.cpp and model are in the same folder as Ricebot
 static TOKEN_LOCATION: &'static str = "ricebot_token.txt";
-static RICEBOT_SUMMON: &'static str = "oh ricebot of the lake";
 
 fn get_current_working_dir() -> io::Result<PathBuf> {
     env::current_dir()
@@ -20,16 +25,21 @@ fn get_current_working_dir() -> io::Result<PathBuf> {
 #[async_trait]
 impl EventHandler for Handler {
     // Set a handler for the `message` event. This is called whenever a new message is received.
-    //
     // Event handlers are dispatched through a threadpool, and so multiple events can be
     // dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.mentions_user_id(ctx.cache.current_user().id) {
+        let current_user_id = ctx.cache.current_user().id;
+        if msg.mentions_user_id(current_user_id) {
+            let id_string = current_user_id.to_string();
+            println!("UserID: {}", id_string);
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
-            let message = &msg.content[RICEBOT_SUMMON.len()..];
-            let cleaned_message: String = message
+            let message = &msg.content[0..];
+            let re = Regex::new(r"<@\d+>").unwrap();
+            let message_without_mention = re.replace(&message, "").to_string();
+            println!("{}", message_without_mention);
+            let cleaned_message: String = message_without_mention.trim()
                 .chars()
                 .filter(|c| c.is_alphanumeric() || c.is_whitespace())
                 .collect();
@@ -42,7 +52,6 @@ impl EventHandler for Handler {
                 .arg(quoted_message.clone())
                 .output()
                 .expect("failed to execute command");
-
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
 

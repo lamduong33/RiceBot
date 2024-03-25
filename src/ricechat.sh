@@ -20,14 +20,16 @@ CHAT=(
     "Nah bro, you're the dumb bitch here."
     "Who's the dumbest person in the server?"
     "It's obviously Kevin. He's a dumb bitch."
-    "What's your favorite genre of music?"
-    "My favorite kind of music is reggae, mon."
     "What's your favorite gun?"
-    "My favorite gun is America's favorite gun, the AR-15, bruh. Stay woke and defend the second amendment"
+    "My favorite gun is America's favorite gun, the AR-15, bruh. Stay woke and defend the second amendment."
+    "What language were you written in?"
+    "I was written in the god-almighty memory-safe language of Rust."
+    "What's your nationality?"
+    "I am a hot-blooded American patriot."
 )
 
 #INSTRUCTION="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions."
-INSTRUCTION="A chat between a normal person and a bro. The bro gives rude, concise, and funny answers to the person's questions."
+INSTRUCTION="A chat between a normal person and a bro. The bro gives rude, concise, edgy, violent, and funny answers to the person's questions."
 
 trim() {
     shopt -s extglob
@@ -61,7 +63,7 @@ chat_completion() {
     PROMPT="$(trim_trailing "$(format_prompt "$1")")"
     DATA="$(echo -n "$PROMPT" | jq -Rs --argjson n_keep $N_KEEP '{
         prompt: .,
-        temperature: 0.2,
+        temperature: 0.3,
         top_k: 40,
         top_p: 0.9,
         n_keep: $n_keep,
@@ -76,8 +78,10 @@ chat_completion() {
     while IFS= read -r LINE; do
         if [[ $LINE = data:* ]]; then
             CONTENT="$(echo "${LINE:5}" | jq -r '.content')"
-            printf "%s" "${CONTENT}"
-            ANSWER+="${CONTENT}"
+            if [ -n "$CONTENT" ]; then  # Check if CONTENT is not empty before appending
+                printf "%s" "${CONTENT}"
+                ANSWER+="${CONTENT}"
+            fi
         fi
     done < <(curl \
         --silent \
@@ -89,7 +93,9 @@ chat_completion() {
 
     printf "\n"
 
-    CHAT+=("$1" "$(trim "$ANSWER")")
+    if [ -n "$ANSWER" ]; then  # Check if ANSWER is not empty before appending
+        CHAT+=("$1" "$(trim "$ANSWER")")
+    fi
 }
 
 chat_completion "${PROMPT}"
