@@ -13,8 +13,6 @@ PERSONALITY="patriot.sh"
 # This will source CHAT and INSTRUCTION
 source $PWD/$PERSONALITY
 
-#INSTRUCTION="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions."
-
 trim() {
     shopt -s extglob
     set -- "${1##+([[:space:]])}"
