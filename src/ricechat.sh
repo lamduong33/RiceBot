@@ -45,7 +45,7 @@ chat_completion() {
     PROMPT="$(trim_trailing "$(format_prompt "$1")")"
     DATA="$(echo -n "$PROMPT" | jq -Rs --argjson n_keep $N_KEEP '{
         prompt: .,
-        temperature: 0.3,
+        temperature: 0.2,
         top_k: 40,
         top_p: 0.9,
         n_keep: $n_keep,
@@ -60,10 +60,8 @@ chat_completion() {
     while IFS= read -r LINE; do
         if [[ $LINE = data:* ]]; then
             CONTENT="$(echo "${LINE:5}" | jq -r '.content')"
-            if [ -n "$CONTENT" ]; then  # Check if CONTENT is not empty before appending
-                printf "%s" "${CONTENT}"
-                ANSWER+="${CONTENT}"
-            fi
+            printf "%s" "${CONTENT}"
+            ANSWER+="${CONTENT}"
         fi
     done < <(curl \
         --silent \
@@ -75,9 +73,7 @@ chat_completion() {
 
     printf "\n"
 
-    if [ -n "$ANSWER" ]; then  # Check if ANSWER is not empty before appending
-        CHAT+=("$1" "$(trim "$ANSWER")")
-    fi
+    CHAT+=("$1" "$(trim "$ANSWER")")
 }
 
 chat_completion "${PROMPT}"

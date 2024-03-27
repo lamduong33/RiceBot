@@ -48,8 +48,13 @@ impl EventHandler for Handler {
                 .expect("failed to execute command");
 
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            println!("Output:{}", stdout);
 
-            if let Err(why) = msg.channel_id.say(&ctx.http, stdout).await {
+            if let Err(why) = msg
+                .channel_id
+                .say(&ctx.http, stdout.replace("<|im_end|>", ""))
+                .await
+            {
                 println!("Error sending message: {why:?}");
             }
         }
