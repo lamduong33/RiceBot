@@ -1,6 +1,5 @@
 // Environment and paths
-use std::path::PathBuf;
-use std::{env, fs, io};
+use std::fs;
 
 // Serenity - Discord bot functionalities
 use serenity::async_trait;
@@ -18,10 +17,6 @@ struct Handler;
 // Assuming that llama.cpp and model are in the same folder as Ricebot
 static TOKEN_LOCATION: &'static str = "ricebot_token.txt";
 
-fn get_current_working_dir() -> io::Result<PathBuf> {
-    env::current_dir()
-}
-
 #[async_trait]
 impl EventHandler for Handler {
     // Set a handler for the `message` event. This is called whenever a new message is received.
@@ -30,14 +25,14 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let current_user_id = ctx.cache.current_user().id;
         if msg.mentions_user_id(current_user_id) {
-            let id_string = current_user_id.to_string();
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
             let message = &msg.content[0..];
             let re = Regex::new(r"<@\d+>").unwrap();
             let message_without_mention = re.replace(&message, "").to_string();
-            let cleaned_message: String = message_without_mention.trim()
+            let cleaned_message: String = message_without_mention
+                .trim()
                 .chars()
                 .filter(|c| c.is_alphanumeric() || c.is_whitespace())
                 .collect();
