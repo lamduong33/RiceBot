@@ -49,7 +49,7 @@ chat_completion() {
         top_k: 40,
         top_p: 0.9,
         n_keep: $n_keep,
-        n_predict: 256,
+        n_predict: 1024,
         cache_prompt: true,
         stop: ["\n### Human:"],
         stream: true
