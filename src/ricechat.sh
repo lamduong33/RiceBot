@@ -11,7 +11,7 @@ PROMPT="$1"
 PERSONALITY="patriot.sh"
 
 # This will source CHAT and INSTRUCTION
-source $PWD/src/$PERSONALITY
+. $PWD/src/$PERSONALITY
 
 trim() {
     shopt -s extglob
