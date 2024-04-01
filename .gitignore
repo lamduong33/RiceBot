@@ -8,9 +8,13 @@ tmp/
 target
 Cargo.lock
 
-# Others
-venv
+# Bot related
 ricebot_token.txt
-identity.txt
+
+# LLM related
 *.gguf
 llama
+server
+
+# Others
+venv
