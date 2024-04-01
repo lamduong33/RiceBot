@@ -45,7 +45,7 @@ chat_completion() {
     PROMPT="$(trim_trailing "$(format_prompt "$1")")"
     DATA="$(echo -n "$PROMPT" | jq -Rs --argjson n_keep $N_KEEP '{
         prompt: .,
-        temperature: 0.2,
+        temperature: 0.3,
         top_k: 40,
         top_p: 0.9,
         n_keep: $n_keep,
