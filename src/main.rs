@@ -3,6 +3,7 @@ use std::fs;
 
 // Serenity - Discord bot functionalities
 use serenity::async_trait;
+use serenity::http::Typing;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
@@ -15,7 +16,15 @@ use regex::Regex;
 
 struct Handler;
 // Assuming that llama.cpp and model are in the same folder as Ricebot
-static TOKEN_LOCATION: &'static str = "ricebot_token.txt";
+const TOKEN_LOCATION: &str = "ricebot_token.txt";
+
+fn send_prompt_to_server(prompt: String) -> String {
+    let mut output = "";
+    if prompt != "" {
+        let api_url: String = "127.0.0.1:8080".to_string();
+    }
+    return output.to_string();
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -28,6 +37,7 @@ impl EventHandler for Handler {
             // Sending a message can fail, due to a network error, an authentication error, or lack
             // of permissions to post in the channel, so log to stdout when some error happens,
             // with a description of it.
+            let typing = Typing::start(ctx.http.clone(), msg.channel_id);
             let message = &msg.content[0..];
             let re = Regex::new(r"<@\d+>").unwrap();
             let message_without_mention = re.replace(&message, "").to_string();
@@ -38,6 +48,7 @@ impl EventHandler for Handler {
                 .collect();
             println!("Query: {}", cleaned_message);
 
+            // TODO: Dynamic pathing for the chat module
             let ricechat_path = "/home/lamanator/Desktop/Git/RiceBot/src/ricechat.sh";
             let quoted_message = format!("\"{}\"", cleaned_message);
 
@@ -50,6 +61,7 @@ impl EventHandler for Handler {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             println!("Output:{}", stdout);
 
+            typing.stop();
             if let Err(why) = msg
                 .channel_id
                 .say(&ctx.http, stdout.replace("<|im_end|>", ""))
@@ -75,7 +87,7 @@ async fn main() {
     // Configure the client with your Discord bot token in the environment.
     println!("Looking for token in file {}", TOKEN_LOCATION);
     let contents = fs::read_to_string(TOKEN_LOCATION).expect("Error reading file!");
-    let token = contents.trim();
+    let contents = contents.trim();
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
