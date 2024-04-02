@@ -8,7 +8,7 @@ if [ "$#" -ne 1  ]; then
 fi
 
 PROMPT="$1"
-PERSONALITY="patriot.sh"
+PERSONALITY="ricebot.sh"
 
 # This will source CHAT and INSTRUCTION
 . $PWD/src/$PERSONALITY
