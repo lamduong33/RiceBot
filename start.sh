@@ -8,5 +8,5 @@ fi
 # Accessing the argument
 MODEL=$1
 
-./server -m "$MODEL"
+./server -m "$MODEL" &
 ./target/debug/rice_bot                                                                                                                                                                                    10:06:24
