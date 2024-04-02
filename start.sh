@@ -1,4 +1,12 @@
 #!/bin/bash
 
-./server -m capybarahermes-2.5-mistral-7b.Q4_K_M.gguf &
+# Check if an argument is provided
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+
+# Accessing the argument
+MODEL=$1
+
+./server -m "$MODEL"
 ./target/debug/rice_bot                                                                                                                                                                                    10:06:24
