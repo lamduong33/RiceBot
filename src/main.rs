@@ -1,5 +1,6 @@
+use std::env::current_dir;
 // Environment and paths
-use std::fs;
+use std::{fs, path};
 
 // Serenity - Discord bot functionalities
 use serenity::async_trait;
@@ -26,6 +27,11 @@ fn send_prompt_to_server(prompt: String) -> String {
     return output.to_string();
 }
 
+fn get_current_dir() -> &str {
+    let current_path = current_dir().unwrap().to_str();
+    return current_path;
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     // Set a handler for the `message` event. This is called whenever a new message is received.
@@ -48,8 +54,11 @@ impl EventHandler for Handler {
                 .collect();
             println!("Query: {}", cleaned_message);
 
-            // TODO: Dynamic pathing for the chat module
-            let ricechat_path = "/home/lamanator/Desktop/Git/RiceBot/src/ricechat.sh";
+            // NOTE: Assuming that the executable is ran at the root of the project.
+            // e.g. running `sh start.sh` at the project's root directory.
+            let current_path = current_dir().unwrap().to_str();
+            let ricechat_relative_path = "/src/chat.sh";
+            let ricechat_path = current_path.to_owned() + ricechat_relative_path.to_owned();
             let quoted_message = format!("\"{}\"", cleaned_message);
 
             let output = Command::new("sh")
