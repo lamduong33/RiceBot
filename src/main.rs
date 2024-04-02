@@ -1,6 +1,5 @@
-use std::env::current_dir;
 // Environment and paths
-use std::{fs, path};
+use std::fs;
 
 // Serenity - Discord bot functionalities
 use serenity::async_trait;
@@ -18,19 +17,6 @@ use regex::Regex;
 struct Handler;
 // Assuming that llama.cpp and model are in the same folder as Ricebot
 const TOKEN_LOCATION: &str = "ricebot_token.txt";
-
-fn send_prompt_to_server(prompt: String) -> String {
-    let mut output = "";
-    if prompt != "" {
-        let api_url: String = "127.0.0.1:8080".to_string();
-    }
-    return output.to_string();
-}
-
-fn get_current_dir() -> &str {
-    let current_path = current_dir().unwrap().to_str();
-    return current_path;
-}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -56,13 +42,11 @@ impl EventHandler for Handler {
 
             // NOTE: Assuming that the executable is ran at the root of the project.
             // e.g. running `sh start.sh` at the project's root directory.
-            let current_path = current_dir().unwrap().to_str();
-            let ricechat_relative_path = "/src/chat.sh";
-            let ricechat_path = current_path.to_owned() + ricechat_relative_path.to_owned();
+            let ricechat_relative_path = "/home/lamanator/Desktop/Git/RiceBot/src/chat.sh";
             let quoted_message = format!("\"{}\"", cleaned_message);
 
             let output = Command::new("sh")
-                .arg(ricechat_path)
+                .arg(ricechat_relative_path)
                 .arg(quoted_message.clone())
                 .output()
                 .expect("failed to execute command");
