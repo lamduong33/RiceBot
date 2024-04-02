@@ -10,6 +10,9 @@ Cargo.lock
 
 # Bot related
 ricebot_token.txt
+# Bot personality
+src/*.sh
+!src/chat.sh
 
 # LLM related
 *.gguf
