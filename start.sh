@@ -2,6 +2,7 @@
 
 # Check if an argument is provided
 if [ $# -ne 1 ]; then
+    echo "Usage: $0 <model>"
     exit 1
 fi
 
