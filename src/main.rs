@@ -79,8 +79,8 @@ impl EventHandler for Handler {
 async fn main() {
     // Configure the client with your Discord bot token in the environment.
     println!("Looking for token in file {}", TOKEN_LOCATION);
-    let contents = fs::read_to_string(TOKEN_LOCATION).expect("Error reading file!");
-    let contents = contents.trim();
+    let token = fs::read_to_string(TOKEN_LOCATION).expect("Error reading file!");
+    let token = token.trim();
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
@@ -88,7 +88,7 @@ async fn main() {
 
     // Create a new instance of the Client, logging in as a bot. This will automatically prepend
     // your bot token with "Bot ", which is a requirement by Discord for bot users.
-    let mut client = Client::builder(&contents, intents)
+    let mut client = Client::builder(&token, intents)
         .event_handler(Handler)
         .await
         .expect("Err creating client");
