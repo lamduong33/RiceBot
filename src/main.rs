@@ -19,6 +19,17 @@ struct Handler;
 // Assuming that llama.cpp and model are in the same folder as Ricebot
 const TOKEN_FILE_NAME: &str = "ricebot_token.txt";
 
+// HTTP Client for YoutubeDl
+use reqwest::Client as HttpClient;
+// To turn user URLs into playable audio, we'll use yt-dlp.
+use songbird::input::{File, Input};
+
+struct HttpKey;
+
+impl TypeMapKey for HttpKey {
+    type Value = HttpClient;
+}
+
 /*
  * EventHandler handles events, such as when the bot receives a message or command from the users.
  */
@@ -62,12 +73,15 @@ impl EventHandler for Handler {
     /// * `new` - the new state of guild's voice channel
     ///
     async fn voice_state_update(&self, ctx: Context, old: Option<VoiceState>, new: VoiceState) {
+        // Ricebot's own ID
+        let ricebot_id = ctx.cache.current_user().id;
         // If old is none, and new has some channel, meaning a user has joined!
         if old
             .as_ref()
             .and_then(|voice_state| voice_state.channel_id)
             .is_none()
             && new.channel_id.is_some()
+            && new.user_id != ricebot_id
         {
             if let Some(user_id) = new.member.as_ref().map(|m| m.user.id) {
                 println!(
@@ -86,16 +100,47 @@ impl EventHandler for Handler {
                     .clone();
 
                 // Join the channel, then perform greeting
-                // Join the voice channel
                 match manager.join(guild_id, channel_id).await {
                     Ok(handler_lock) => {
                         println!("Joined voice channel with user: {:?}", new.user_id);
-                        // Attach an event handler to see notifications of all track errors.
+
                         let mut handler = handler_lock.lock().await;
+
+                        // Attach an event handler to see notifications of all track errors.
                         handler.add_global_event(TrackEvent::Error.into(), TrackErrorNotifier);
+
+                        // Load local MP3 file (place greeting.mp3 in project root)
+                        let source = File::new("welcome.mp3");
+
+                        // Play the audio and get the track handle
+                        let track_handle = handler.play_input(Input::from(source));
+
+                        println!("Playing greeting audio...");
+
+                        // Get the track info to determine length
+                        if let Ok(info) = track_handle.get_info().await {
+                            let duration = info.play_time;
+                            println!("Audio duration: {:?}", duration);
+                            // Wait for the track to finish
+                            //tokio::time::sleep(duration).await;
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                        } else {
+                            // Fallback if we can't get info
+                            println!("Could not get track info, waiting 5 seconds");
+                            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                        }
                     }
                     Err(e) => {
                         println!("Error joining voice channel: {:?}", e);
+                    }
+                }
+
+                // Leave the voice channel
+                if manager.get(guild_id).is_some() {
+                    if let Err(e) = manager.remove(guild_id).await {
+                        println!("Error leaving voice channel: {:?}", e);
+                    } else {
+                        println!("Leaving voice channel!");
                     }
                 }
             }
