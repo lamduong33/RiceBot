@@ -2,15 +2,20 @@
 # Manage RiceBot and its llama-server (systemd user services).
 set -euo pipefail
 SVCS=(llama-server ricebot)
-REPO=/home/lamanator/Desktop/Git/RiceBot
+REPO="${RICEBOT_REPO:-$HOME/Desktop/Git/RiceBot}"
 ENVF="$HOME/.config/ricebot/llama.env"
 
 case "${1:-status}" in
   start|stop|restart) systemctl --user "$1" "${SVCS[@]}" ;;
-  status)  systemctl --user --no-pager status "${SVCS[@]}" | grep -E '●|Active:|Main PID'
+  # systemctl status exits non-zero when a service is down; keep going so the
+  # model line still prints when you need it most.
+  status)  systemctl --user --no-pager status "${SVCS[@]}" | grep -E '●|Active:|Main PID' || true
            grep '^MODEL=' "$ENVF" ;;
   logs)    journalctl --user -f -u "${2:-ricebot}" ;;
-  update)  (cd "$REPO" && git pull && cargo build --release) && systemctl --user restart ricebot ;;
+  # daemon-reload picks up any changes to the linked deploy/*.service files.
+  update)  (cd "$REPO" && git pull && cargo build --release)
+           systemctl --user daemon-reload
+           systemctl --user restart ricebot ;;
   model)
     case "${2:-}" in
       mag-mell) m="$HOME/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf" ;;

@@ -69,17 +69,23 @@ systemctl --user stop ricebot llama-server
   --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 8192
 ```
 
-To make a change permanent, edit `~/.config/systemd/user/llama-server.service`, then:
+To make a change permanent, edit `deploy/llama-server.service` in the repo (systemd
+reads it through a symlink), then:
 
 ```sh
 systemctl --user daemon-reload && ricebot restart
 ```
 
+Commit the change so the repo stays the source of truth.
+
 ## Gotchas
 
 - **Any edit to a `.service` file needs `systemctl --user daemon-reload`** before
-  restarting, or systemd keeps using the old version.
-- **After too many crashes**, systemd stops retrying. Fix the cause, then:
+  restarting, or systemd keeps using the old version. `ricebot update` does this for you.
+- **A crashing service retries forever** (every 5 s for llama-server, 10 s for the bot),
+  so a broken config shows up as `activating (auto-restart)` rather than `failed`.
+  `ricebot stop` while you fix it, so the logs don't fill with the same error. If a
+  service ever does end up `failed`:
   `systemctl --user reset-failed ricebot && ricebot start`
 - **The service runs the built binary, not your source.** After code changes, run
   `ricebot update`, or `cargo build --release && ricebot restart` if you haven't
@@ -99,9 +105,9 @@ systemctl --user daemon-reload && ricebot restart
 |---|---|
 | Bot code, `.env` (token, LLM settings) | `~/Desktop/Git/RiceBot/` |
 | Personality (system prompt), known people | `~/Desktop/Git/RiceBot/{PERSONALITY.md,people.toml}` |
-| Services | `~/.config/systemd/user/{llama-server,ricebot}.service` |
-| Current model choice | `~/.config/ricebot/llama.env` |
-| `ricebot` command | `~/.local/bin/ricebot` |
+| Services (symlinks to `deploy/` in the repo) | `~/.config/systemd/user/{llama-server,ricebot}.service` |
+| Current model choice (not in git; template `deploy/llama.env.example`) | `~/.config/ricebot/llama.env` |
+| `ricebot` command (symlink to `deploy/ricebot`) | `~/.local/bin/ricebot` |
 | llama.cpp build | `~/llama.cpp/build/bin/` |
 | Models (symlinks into `~/.cache/huggingface/`, don't delete that cache) | `~/models/` |
 
@@ -116,3 +122,50 @@ A typical reply on the 12B takes ~30–60 s behind the "typing…" indicator.
 Reply length, timeout and temperature are set by `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECS`
 and `LLM_TEMPERATURE` in the server's `.env` (see `.env.example` for all settings).
 On the 12B, keep `LLM_TIMEOUT_SECS` well above `LLM_MAX_TOKENS` ÷ 3 tok/s plus prompt time.
+
+## First-time setup
+
+For a fresh machine, or rebuilding after a disk failure. Needs Rust, git, cmake, a
+C++ compiler and the Hugging Face CLI (`pip install -U huggingface_hub`, which
+provides `hf`).
+
+```sh
+# 1. Code and secrets
+git clone https://github.com/lamduong33/RiceBot.git ~/Desktop/Git/RiceBot
+cd ~/Desktop/Git/RiceBot
+cp .env.example .env                     # set DISCORD_TOKEN, tune LLM_* settings
+cp PERSONALITY.example.md PERSONALITY.md # or restore your real one from a backup
+cp people.example.toml people.toml       # or restore your real one from a backup
+cargo build --release
+
+# 2. llama.cpp
+git clone https://github.com/ggml-org/llama.cpp ~/llama.cpp
+cmake -S ~/llama.cpp -B ~/llama.cpp/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ~/llama.cpp/build -j --target llama-server
+
+# 3. Models (downloaded into ~/.cache/huggingface/, linked into ~/models/)
+mkdir -p ~/models
+ln -sf "$(hf download bartowski/MN-12B-Mag-Mell-R1-GGUF MN-12B-Mag-Mell-R1-Q4_K_M.gguf)" ~/models/
+ln -sf "$(hf download bartowski/TheDrummer_Cydonia-24B-v4.3-GGUF TheDrummer_Cydonia-24B-v4.3-Q4_K_M.gguf)" ~/models/
+
+# 4. Model choice (absolute path: systemd doesn't expand ~ in this file)
+mkdir -p ~/.config/ricebot
+echo "MODEL=$HOME/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf" > ~/.config/ricebot/llama.env
+
+# 5. Helper command and services, linked so the repo stays the source of truth
+mkdir -p ~/.local/bin
+ln -sf ~/Desktop/Git/RiceBot/deploy/ricebot ~/.local/bin/ricebot
+systemctl --user enable ~/Desktop/Git/RiceBot/deploy/{llama-server,ricebot}.service
+
+# 6. Keep services running at boot and after logout
+sudo loginctl enable-linger "$USER"
+
+ricebot start && ricebot
+```
+
+`PERSONALITY.md`, `people.toml` and `.env` are not in git, so back them up somewhere
+else. They're the only parts of the setup this section can't rebuild.
+
+If the repo isn't at `~/Desktop/Git/RiceBot`, change `WorkingDirectory` and `ExecStart`
+in `deploy/ricebot.service`, and set `RICEBOT_REPO` for the `ricebot` command.
+Tune `-t`/`-tb` in `deploy/llama-server.service` to the new CPU's core count.

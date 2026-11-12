@@ -4,8 +4,8 @@ Wants=llama-server.service network-online.target
 After=llama-server.service network-online.target
 
 [Service]
-WorkingDirectory=/home/lamanator/Desktop/Git/RiceBot
-ExecStart=/home/lamanator/Desktop/Git/RiceBot/target/release/rice_bot
+WorkingDirectory=%h/Desktop/Git/RiceBot
+ExecStart=%h/Desktop/Git/RiceBot/target/release/rice_bot
 Restart=always
 RestartSec=10
 
