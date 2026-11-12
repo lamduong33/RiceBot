@@ -8,6 +8,10 @@ use anyhow::{Context, Result, bail};
 #[derive(Debug, Clone)]
 pub struct Config {
     pub discord_token: String,
+    /// Request the privileged Message Content intent, so the bot can read
+    /// messages it's asked about in a reply. Must also be enabled for the bot
+    /// in the Discord Developer Portal, or connecting fails.
+    pub message_content_intent: bool,
     pub greeter: GreeterConfig,
     pub llm: LlmConfig,
     pub chat: ChatConfig,
@@ -104,6 +108,7 @@ impl Config {
 
         let config = Self {
             discord_token,
+            message_content_intent: optional("DISCORD_MESSAGE_CONTENT")?.unwrap_or(false),
             greeter: GreeterConfig {
                 audio_path: optional("GREETING_AUDIO")?.unwrap_or_else(|| "welcome.mp3".into()),
                 max_duration: Duration::from_secs(optional("GREETING_MAX_SECS")?.unwrap_or(30)),
