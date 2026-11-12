@@ -2,7 +2,7 @@
 
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
 use anyhow::Result;
@@ -18,37 +18,54 @@ use crate::{
     config::{ChatConfig, LlmConfig},
     llm::{ChatMessage, LlmClient, Role},
     people::People,
+    personality::{self, Source},
 };
 
 /// Discord's limit on the length of a single message, in characters.
 const MESSAGE_LIMIT: usize = 2000;
 
 const EMPTY_PROMPT_REPLY: &str = "Hi! Mention me together with a question and I'll do my best to answer.";
+/// Sent as `@RiceBot !reload`. The bot doesn't request the message content
+/// intent, so commands have to mention it like any other message.
+const RELOAD_COMMAND: &str = "!reload";
 const LLM_ERROR_REPLY: &str = "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
 
 pub struct Chat {
     llm: LlmClient,
     /// Limits how many requests are sent to the model at once.
     permits: Semaphore,
-    system_prompt: String,
-    people: People,
+    /// Where the personality and people files are, for `!reload`.
+    files: ChatConfig,
+    /// Personality and people, replaced together by `!reload`. Each message
+    /// takes its own reference, so a reload never changes a reply halfway.
+    knowledge: RwLock<Arc<Knowledge>>,
     history_len: usize,
     /// Recent conversation per channel, oldest first.
     history: Mutex<HashMap<ChannelId, VecDeque<ChatMessage>>>,
 }
 
+/// What the bot is told before every conversation: who it is and who it knows.
+struct Knowledge {
+    /// The personality file plus the fixed chat rules.
+    system_prompt: String,
+    personality_source: Source,
+    people: People,
+}
+
 impl Chat {
     pub fn new(chat: &ChatConfig, llm: &LlmConfig) -> Result<Self> {
-        let people = People::load(&chat.people_file, chat.people_file_required)?;
-        info!(count = people.len(), file = %chat.people_file.display(), "loaded people");
         Ok(Self {
             llm: LlmClient::new(llm)?,
             permits: Semaphore::new(llm.max_concurrency),
-            system_prompt: chat.system_prompt.clone(),
-            people,
+            files: chat.clone(),
+            knowledge: RwLock::new(Arc::new(load_knowledge(chat)?)),
             history_len: chat.history_messages,
             history: Mutex::default(),
         })
+    }
+
+    fn knowledge(&self) -> Arc<Knowledge> {
+        Arc::clone(&self.knowledge.read().unwrap_or_else(PoisonError::into_inner))
     }
 
     pub async fn on_message(&self, ctx: &Context, msg: &Message) {
@@ -57,13 +74,18 @@ impl Chat {
             return;
         }
 
-        let prompt = clean_prompt(ctx, msg, bot_id, &self.people);
+        let knowledge = self.knowledge();
+        let prompt = clean_prompt(ctx, msg, bot_id, &knowledge.people);
         if prompt.is_empty() {
             send_reply(ctx, msg, EMPTY_PROMPT_REPLY).await;
             return;
         }
+        if prompt.eq_ignore_ascii_case(RELOAD_COMMAND) {
+            self.reload(ctx, msg).await;
+            return;
+        }
 
-        let author = match self.people.get(msg.author.id) {
+        let author = match knowledge.people.get(msg.author.id) {
             Some(person) => person.name.clone(),
             None => msg
                 .member
@@ -76,7 +98,7 @@ impl Chat {
         let question = ChatMessage::new(Role::User, format!("{author}: {prompt}"));
         let mut conversation = vec![ChatMessage::new(
             Role::System,
-            self.system_prompt_for(msg, bot_id),
+            system_prompt_for(&knowledge, msg, bot_id),
         )];
         conversation.extend(self.recent_history(msg.channel_id));
         conversation.push(question.clone());
@@ -100,22 +122,40 @@ impl Chat {
         }
     }
 
-    /// The system prompt plus notes on the author and anyone they mentioned.
-    /// Notes go in the single system message because some chat templates
-    /// reject more than one.
-    fn system_prompt_for(&self, msg: &Message, bot_id: UserId) -> String {
-        let mentioned = msg
-            .mentions
-            .iter()
-            .map(|user| user.id)
-            .filter(|&id| id != bot_id);
-        match self
-            .people
-            .describe(std::iter::once(msg.author.id).chain(mentioned))
-        {
-            Some(notes) => format!("{}\n\n{notes}", self.system_prompt),
-            None => self.system_prompt.clone(),
+    /// Re-reads the personality and people files and clears chat memory. Only
+    /// the bot's owner (or members of the team that owns it) may do this.
+    async fn reload(&self, ctx: &Context, msg: &Message) {
+        if !is_bot_owner(ctx, msg.author.id).await {
+            info!(user = %msg.author.id, "ignored !reload from someone who doesn't own the bot");
+            send_reply(ctx, msg, "Only my owner can reload my personality.").await;
+            return;
         }
+
+        let reply = match load_knowledge(&self.files) {
+            Ok(knowledge) => {
+                let personality = match knowledge.personality_source {
+                    Source::File => format!("my personality from `{}`", self.files.personality_file.display()),
+                    Source::Default => format!(
+                        "my default personality (`{}` doesn't exist)",
+                        self.files.personality_file.display()
+                    ),
+                };
+                let people = knowledge.people.len();
+                *self.knowledge.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(knowledge);
+                // Old replies would keep nudging the model towards the old personality.
+                self.history.lock().unwrap_or_else(PoisonError::into_inner).clear();
+                format!(
+                    "Reloaded {personality} and {people} {} from `{}`, and cleared my chat memory.",
+                    if people == 1 { "person" } else { "people" },
+                    self.files.people_file.display()
+                )
+            }
+            Err(e) => {
+                warn!("could not reload personality or people: {e:#}");
+                format!("Couldn't reload, so I'm keeping everything as it was: {e:#}")
+            }
+        };
+        send_reply(ctx, msg, &reply).await;
     }
 
     fn recent_history(&self, channel_id: ChannelId) -> Vec<ChatMessage> {
@@ -136,6 +176,59 @@ impl Chat {
         messages.extend([question, answer]);
         while messages.len() > self.history_len {
             messages.pop_front();
+        }
+    }
+}
+
+/// Reads the personality and people files, logging what was loaded.
+fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
+    let (system_prompt, personality_source) =
+        personality::load(&files.personality_file, files.personality_file_required)?;
+    let people = People::load(&files.people_file, files.people_file_required)?;
+
+    match personality_source {
+        Source::File => info!(file = %files.personality_file.display(), "loaded personality"),
+        Source::Default => warn!(
+            file = %files.personality_file.display(),
+            "personality file not found, using the default personality"
+        ),
+    }
+    info!(count = people.len(), file = %files.people_file.display(), "loaded people");
+
+    Ok(Knowledge { system_prompt, personality_source, people })
+}
+
+/// The system prompt plus notes on the author and anyone they mentioned.
+/// Notes go in the single system message because some chat templates reject
+/// more than one.
+fn system_prompt_for(knowledge: &Knowledge, msg: &Message, bot_id: UserId) -> String {
+    let mentioned = msg
+        .mentions
+        .iter()
+        .map(|user| user.id)
+        .filter(|&id| id != bot_id);
+    match knowledge
+        .people
+        .describe(std::iter::once(msg.author.id).chain(mentioned))
+    {
+        Some(notes) => format!("{}\n\n{notes}", knowledge.system_prompt),
+        None => knowledge.system_prompt.clone(),
+    }
+}
+
+/// Whether `user` owns the bot's Discord application, directly or through a team.
+async fn is_bot_owner(ctx: &Context, user: UserId) -> bool {
+    match ctx.http.get_current_application_info().await {
+        Ok(app) => {
+            app.owner.as_ref().is_some_and(|owner| owner.id == user)
+                || app
+                    .team
+                    .as_ref()
+                    .is_some_and(|team| team.members.iter().any(|member| member.user.id == user))
+        }
+        Err(e) => {
+            warn!("could not look up the bot's owner: {e}");
+            false
         }
     }
 }
