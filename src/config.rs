@@ -1,13 +1,9 @@
 //! Runtime configuration, read from environment variables (and an optional
 //! `.env` file in the working directory).
 
-use std::{env, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
+use std::{env, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result, bail};
-
-const DEFAULT_SYSTEM_PROMPT: &str = "You are RiceBot, a friendly and witty Discord bot. \
-     Messages are prefixed with the sender's name. \
-     Keep answers short and conversational, and use Discord markdown when it helps.";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -43,7 +39,11 @@ pub struct LlmConfig {
 
 #[derive(Debug, Clone)]
 pub struct ChatConfig {
-    pub system_prompt: String,
+    /// Markdown file describing RiceBot's personality. Read at startup and
+    /// again on `!reload`.
+    pub personality_file: PathBuf,
+    /// Whether `personality_file` was set explicitly, making a missing file an error.
+    pub personality_file_required: bool,
     /// TOML file of people the bot knows, keyed by Discord user ID.
     pub people_file: PathBuf,
     /// Whether `people_file` was set explicitly, making a missing file an error.
@@ -79,7 +79,9 @@ impl Config {
                 max_concurrency: optional("LLM_MAX_CONCURRENCY")?.unwrap_or(2),
             },
             chat: ChatConfig {
-                system_prompt: system_prompt()?,
+                personality_file_required: optional::<String>("PERSONALITY_FILE")?.is_some(),
+                personality_file: optional("PERSONALITY_FILE")?
+                    .unwrap_or_else(|| "PERSONALITY.md".into()),
                 people_file_required: optional::<String>("PEOPLE_FILE")?.is_some(),
                 people_file: optional("PEOPLE_FILE")?.unwrap_or_else(|| "people.toml".into()),
                 history_messages: optional("CHAT_HISTORY_MESSAGES")?.unwrap_or(10),
@@ -91,22 +93,6 @@ impl Config {
         }
 
         Ok(config)
-    }
-}
-
-/// The contents of `PERSONALITY_FILE` (default `PERSONALITY.md`), or a
-/// built-in prompt if the default file is missing. A missing file is an error
-/// when `PERSONALITY_FILE` was set explicitly.
-fn system_prompt() -> Result<String> {
-    let explicit: Option<PathBuf> = optional("PERSONALITY_FILE")?;
-    let path = explicit.clone().unwrap_or_else(|| "PERSONALITY.md".into());
-    match fs::read_to_string(&path) {
-        Ok(text) if !text.trim().is_empty() => Ok(text.trim().to_owned()),
-        Ok(_) => bail!("{} is empty", path.display()),
-        Err(e) if e.kind() == ErrorKind::NotFound && explicit.is_none() => {
-            Ok(DEFAULT_SYSTEM_PROMPT.into())
-        }
-        Err(e) => Err(e).with_context(|| format!("could not read {}", path.display())),
     }
 }
 

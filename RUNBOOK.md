@@ -11,7 +11,7 @@ restart on crash, and keep running after you log out:
 ```sh
 ricebot              # are both up? which model?
 ricebot logs         # live bot logs (Ctrl+C to exit); `ricebot logs llama-server` for the LLM
-ricebot restart      # after editing .env, PERSONALITY.md or people.toml
+ricebot restart      # after editing .env (PERSONALITY.md / people.toml: `@RiceBot !reload` in Discord)
 ricebot stop|start   # take offline / bring back
 ricebot update       # after code changes: git pull, build, restart
 ricebot model cydonia    # switch to the 24B model (`mag-mell` back, or a path to any .gguf)
