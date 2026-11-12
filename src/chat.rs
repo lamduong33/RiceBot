@@ -34,6 +34,8 @@ const RELOAD_COMMAND: &str = "!reload";
 /// along with its Discord username.
 const BOT_NAME: &str = "RiceBot";
 const LLM_ERROR_REPLY: &str = "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
+/// Longest quote of a replied-to message passed to the model, in characters.
+const QUOTE_LIMIT: usize = 1000;
 
 pub struct Chat {
     llm: LlmClient,
@@ -108,14 +110,13 @@ impl Chat {
             return;
         }
 
-        let author = match knowledge.people.get(msg.author.id) {
-            Some(person) => person.name.clone(),
-            None => msg
-                .member
-                .as_ref()
-                .and_then(|member| member.nick.clone())
-                .unwrap_or_else(|| msg.author.display_name().to_owned()),
-        };
+        let author = author_name(msg, bot_id, &knowledge.people);
+        // When the mention is a reply, the model sees what's being replied to.
+        let quote = msg
+            .referenced_message
+            .as_deref()
+            .map(|quoted| quote_of(ctx, quoted, bot_id, &knowledge.people))
+            .unwrap_or_default();
         info!(user = %msg.author.id, channel = %msg.channel_id, "answering mention");
 
         // With server-wide memory, each message says which channel it came
@@ -132,7 +133,7 @@ impl Chat {
             _ => (MemoryKey::Channel(msg.channel_id), String::new()),
         };
 
-        let question = ChatMessage::new(Role::User, format!("{tag}{author}: {prompt}"));
+        let question = ChatMessage::new(Role::User, format!("{tag}{author}: {quote}{prompt}"));
         let history = self.recent_history(key);
         let speakers = speaker_names(&author, &knowledge.people, &history);
         let mut system_prompt = knowledge.system_prompt.clone();
@@ -327,6 +328,48 @@ fn speaker_names(author: &str, people: &People, history: &[ChatMessage]) -> Vec<
     names
 }
 
+/// What the bot calls the author of `msg`: their name in `people`, else their
+/// server nickname, else their Discord display name.
+fn author_name(msg: &Message, bot_id: UserId, people: &People) -> String {
+    if msg.author.id == bot_id {
+        return BOT_NAME.to_owned();
+    }
+    match people.get(msg.author.id) {
+        Some(person) => person.name.clone(),
+        None => msg
+            .member
+            .as_ref()
+            .and_then(|member| member.nick.clone())
+            .unwrap_or_else(|| msg.author.display_name().to_owned()),
+    }
+}
+
+/// Describes the message being replied to, for the start of the question:
+/// `(replying to Kevin: "text") `.
+fn quote_of(ctx: &Context, quoted: &Message, bot_id: UserId, people: &People) -> String {
+    let author = author_name(quoted, bot_id, people);
+    let text = readable_content(ctx, quoted, &quoted.content, people);
+    let text = if !text.is_empty() {
+        truncate(&text, QUOTE_LIMIT)
+    } else if !quoted.attachments.is_empty() || !quoted.embeds.is_empty() {
+        "[an attachment or embed]".to_owned()
+    } else {
+        // Discord leaves the text out for bots without the Message Content
+        // intent, unless the message mentions the bot or is the bot's own.
+        debug!(message = %quoted.id, "replied-to message has no readable text");
+        return format!("(replying to a message from {author} that you can't see) ");
+    };
+    format!("(replying to {author}: \"{}\") ", text.replace('\n', " "))
+}
+
+/// The first `limit` characters of `text`, with "…" if any were cut.
+fn truncate(text: &str, limit: usize) -> String {
+    match text.char_indices().nth(limit) {
+        Some((end, _)) => format!("{}…", text[..end].trim_end()),
+        None => text.to_owned(),
+    }
+}
+
 /// Whether `user` owns the bot's Discord application, directly or through a team.
 async fn is_bot_owner(ctx: &Context, user: UserId) -> bool {
     match ctx.http.get_current_application_info().await {
@@ -348,17 +391,22 @@ async fn is_bot_owner(ctx: &Context, user: UserId) -> bool {
 /// names, so the model sees readable text. People in `people` are shown by
 /// their known name rather than their nickname.
 fn clean_prompt(ctx: &Context, msg: &Message, bot_id: UserId, people: &People) -> String {
-    let mut without_bot = strip_mention(&msg.content, bot_id);
+    readable_content(ctx, msg, &strip_mention(&msg.content, bot_id), people)
+}
+
+/// Turns the mentions in `content`, which comes from `msg`, into plain names.
+fn readable_content(ctx: &Context, msg: &Message, content: &str, people: &People) -> String {
+    let mut content = content.to_owned();
     for user in &msg.mentions {
         if let Some(person) = people.get(user.id) {
-            without_bot = replace_mention(&without_bot, user.id, &format!("@{}", person.name));
+            content = replace_mention(&content, user.id, &format!("@{}", person.name));
         }
     }
     let mut options = ContentSafeOptions::default();
     if let Some(guild_id) = msg.guild_id {
         options = options.display_as_member_from(guild_id);
     }
-    content_safe(&ctx.cache, without_bot, &options, &msg.mentions)
+    content_safe(&ctx.cache, content, &options, &msg.mentions)
         .trim()
         .to_owned()
 }
@@ -620,6 +668,13 @@ mod tests {
             speaker_names("Garrett", &People::default(), &history),
             vec!["Garrett", "Kevin"]
         );
+    }
+
+    #[test]
+    fn truncates_long_quotes_on_char_boundaries() {
+        assert_eq!(truncate("short", 10), "short");
+        assert_eq!(truncate("héllo world", 5), "héllo…");
+        assert_eq!(truncate("ab cd", 3), "ab…");
     }
 
     #[test]

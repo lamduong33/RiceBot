@@ -36,7 +36,9 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
 1. **Discord application:** create a bot in the
    [Developer Portal](https://discord.com/developers/applications) and invite it
    with the *Send Messages*, *Read Message History*, *Connect* and *Speak*
-   permissions. No privileged intents are needed.
+   permissions. No privileged intents are needed, unless you want RiceBot to
+   read the message you're replying to when you mention it: then turn on
+   *Message Content Intent* under *Bot* and set `DISCORD_MESSAGE_CONTENT=true`.
 2. **LLM server:** build [llama.cpp](https://github.com/ggml-org/llama.cpp) and
    start it bound to localhost:
    ```sh
@@ -67,6 +69,7 @@ mention it.
 | Join a voice channel | Joins, plays the welcome sound, then leaves | Everyone |
 | `@RiceBot <message>` | Replies in character using the local LLM | Everyone |
 | `@RiceBot` on its own | Replies with a short hint on how to talk to it | Everyone |
+| Reply to a message and mention `@RiceBot` | Answers with the replied-to message as context (needs `DISCORD_MESSAGE_CONTENT=true`, except for replies to RiceBot's own messages) | Everyone |
 | `@RiceBot !reload` | Re-reads `PERSONALITY.md` and `people.toml`, clears its chat memory | Bot owner only |
 
 ### Voice greeting
