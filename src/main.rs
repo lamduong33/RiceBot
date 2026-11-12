@@ -6,6 +6,7 @@ mod config;
 mod greeter;
 mod handler;
 mod llm;
+mod people;
 
 use anyhow::{Context as _, Result};
 use serenity::{Client, all::GatewayIntents};

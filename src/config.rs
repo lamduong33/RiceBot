@@ -1,7 +1,7 @@
 //! Runtime configuration, read from environment variables (and an optional
 //! `.env` file in the working directory).
 
-use std::{env, path::PathBuf, str::FromStr, time::Duration};
+use std::{env, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result, bail};
 
@@ -43,6 +43,10 @@ pub struct LlmConfig {
 #[derive(Debug, Clone)]
 pub struct ChatConfig {
     pub system_prompt: String,
+    /// TOML file of people the bot knows, keyed by Discord user ID.
+    pub people_file: PathBuf,
+    /// Whether `people_file` was set explicitly, making a missing file an error.
+    pub people_file_required: bool,
     /// Previous messages per channel sent along as context.
     pub history_messages: usize,
 }
@@ -72,8 +76,9 @@ impl Config {
                 max_concurrency: optional("LLM_MAX_CONCURRENCY")?.unwrap_or(2),
             },
             chat: ChatConfig {
-                system_prompt: optional("SYSTEM_PROMPT")?
-                    .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.into()),
+                system_prompt: system_prompt()?,
+                people_file_required: optional::<String>("PEOPLE_FILE")?.is_some(),
+                people_file: optional("PEOPLE_FILE")?.unwrap_or_else(|| "people.toml".into()),
                 history_messages: optional("CHAT_HISTORY_MESSAGES")?.unwrap_or(10),
             },
         };
@@ -83,6 +88,22 @@ impl Config {
         }
 
         Ok(config)
+    }
+}
+
+/// The contents of `PERSONALITY_FILE` (default `PERSONALITY.md`), or a
+/// built-in prompt if the default file is missing. A missing file is an error
+/// when `PERSONALITY_FILE` was set explicitly.
+fn system_prompt() -> Result<String> {
+    let explicit: Option<PathBuf> = optional("PERSONALITY_FILE")?;
+    let path = explicit.clone().unwrap_or_else(|| "PERSONALITY.md".into());
+    match fs::read_to_string(&path) {
+        Ok(text) if !text.trim().is_empty() => Ok(text.trim().to_owned()),
+        Ok(_) => bail!("{} is empty", path.display()),
+        Err(e) if e.kind() == ErrorKind::NotFound && explicit.is_none() => {
+            Ok(DEFAULT_SYSTEM_PROMPT.into())
+        }
+        Err(e) => Err(e).with_context(|| format!("could not read {}", path.display())),
     }
 }
 
