@@ -78,6 +78,14 @@ impl People {
         self.by_id.get(&id)
     }
 
+    /// Everyone's `name`, in file order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.order
+            .iter()
+            .filter_map(|id| self.get(*id))
+            .map(|person| person.name.as_str())
+    }
+
     pub fn len(&self) -> usize {
         self.by_id.len()
     }

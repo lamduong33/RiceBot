@@ -22,6 +22,7 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
 | `src/greeter.rs` | Voice join → play → leave, one greeting per server at a time |
 | `src/chat.rs` | Mention handling, per-channel history, splitting long replies, `!reload` |
 | `src/personality.rs` | Loads `PERSONALITY.md` and adds the fixed chat rules |
+| `src/reply.rs` | Cleans transcript-style replies (`RiceBot: Garrett: …`) before sending |
 | `src/people.rs` | People the bot knows (`people.toml`), keyed by Discord user ID |
 | `src/llm.rs` | Client for the OpenAI-compatible `/v1/chat/completions` API |
 

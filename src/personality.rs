@@ -19,7 +19,9 @@ const CHAT_RULES: &str = "\
 \"Sam: hello\". The name only tells you who is speaking; it is not part of what \
 they said.
 - Several people may be in the conversation. Keep track of who said what.
-- Reply with just your message. Don't start it with your own name.";
+- Reply with just your own message. Don't start it with your own name or \
+anyone else's, don't repeat the message you're answering, and never write \
+lines for other people.";
 
 /// Where the personality came from, for logging and the `!reload` reply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
