@@ -30,7 +30,9 @@ impl ChatMessage {
 struct CompletionRequest<'a> {
     model: &'a str,
     messages: &'a [ChatMessage],
-    max_tokens: u32,
+    /// Left out when unlimited, so the server generates until the model stops.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
     temperature: f32,
 }
 
@@ -53,7 +55,7 @@ pub struct LlmClient {
     http: reqwest::Client,
     endpoint: String,
     model: String,
-    max_tokens: u32,
+    max_tokens: Option<u32>,
     temperature: f32,
 }
 
@@ -116,6 +118,21 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn unlimited_reply_omits_max_tokens() {
+        let request = |max_tokens| {
+            serde_json::to_value(CompletionRequest {
+                model: "local",
+                messages: &[],
+                max_tokens,
+                temperature: 0.7,
+            })
+            .unwrap()
+        };
+        assert!(request(None).get("max_tokens").is_none());
+        assert_eq!(request(Some(200))["max_tokens"], 200);
+    }
+
     /// Run with `cargo test -- --ignored` while `llama-server` is running.
     #[tokio::test]
     #[ignore = "needs a local LLM server on LLM_URL (default http://127.0.0.1:8080)"]
@@ -124,7 +141,7 @@ mod tests {
             base_url: std::env::var("LLM_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".into()),
             model: "local".into(),
             timeout: Duration::from_secs(120),
-            max_tokens: 32,
+            max_tokens: Some(32),
             temperature: 0.0,
             max_concurrency: 1,
         };

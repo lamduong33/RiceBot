@@ -34,7 +34,8 @@ pub struct LlmConfig {
     /// was started with, so this only matters for servers hosting several models.
     pub model: String,
     pub timeout: Duration,
-    pub max_tokens: u32,
+    /// Longest reply in tokens, or `None` for no limit (`LLM_MAX_TOKENS=0`).
+    pub max_tokens: Option<u32>,
     pub temperature: f32,
     /// Requests sent to the model at once. Match `llama-server --parallel`.
     pub max_concurrency: usize,
@@ -69,7 +70,11 @@ impl Config {
                     .to_owned(),
                 model: optional("LLM_MODEL")?.unwrap_or_else(|| "local".into()),
                 timeout: Duration::from_secs(optional("LLM_TIMEOUT_SECS")?.unwrap_or(180)),
-                max_tokens: optional("LLM_MAX_TOKENS")?.unwrap_or(512),
+                // 0 means no limit: the model writes until it decides it's done.
+                max_tokens: match optional("LLM_MAX_TOKENS")?.unwrap_or(512) {
+                    0 => None,
+                    n => Some(n),
+                },
                 temperature: optional("LLM_TEMPERATURE")?.unwrap_or(0.7),
                 max_concurrency: optional("LLM_MAX_CONCURRENCY")?.unwrap_or(2),
             },
