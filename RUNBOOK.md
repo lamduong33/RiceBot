@@ -11,7 +11,7 @@ restart on crash, and keep running after you log out:
 ```sh
 ricebot              # are both up? which model?
 ricebot logs         # live bot logs (Ctrl+C to exit); `ricebot logs llama-server` for the LLM
-ricebot restart      # after editing .env
+ricebot restart      # after editing .env, PERSONALITY.md or people.toml
 ricebot stop|start   # take offline / bring back
 ricebot update       # after code changes: git pull, build, restart
 ricebot model cydonia    # switch to the 24B model (`mag-mell` back, or a path to any .gguf)
@@ -56,6 +56,11 @@ RUST_LOG=rice_bot=debug cargo run --release
 systemctl --user start ricebot         # hand back to the service when done
 ```
 
+`cargo run --release` rebuilds `target/release/rice_bot`, the same binary the service
+runs. When you start the service again it runs **whatever you were just editing**,
+including uncommitted changes. To go back to what's on GitHub, run
+`git stash` (or commit), then `ricebot update`.
+
 ### 4. Try llama-server settings by hand
 
 ```sh
@@ -82,12 +87,18 @@ systemctl --user daemon-reload && ricebot restart
 - **Slow replies or timeouts** usually come from the CPU, not a bug.
   `ricebot logs llama-server` shows tokens/sec for each request.
 - **Permanent debug logging:** set `RUST_LOG=rice_bot=debug` in `.env`, then `ricebot restart`.
+- **The bot reads its files from its working directory.** `.env`, `PERSONALITY.md`,
+  `people.toml` and `welcome.mp3` are relative paths, so `ricebot.service` needs
+  `WorkingDirectory=%h/Desktop/Git/RiceBot`. Without it the bot quietly uses the
+  built-in personality and knows no one, and greetings fail. If RiceBot suddenly
+  sounds generic, check this first.
 
 ## Where things live
 
 | What | Path |
 |---|---|
-| Bot code, `.env` (token, LLM settings, system prompt) | `~/Desktop/Git/RiceBot/` |
+| Bot code, `.env` (token, LLM settings) | `~/Desktop/Git/RiceBot/` |
+| Personality (system prompt), known people | `~/Desktop/Git/RiceBot/{PERSONALITY.md,people.toml}` |
 | Services | `~/.config/systemd/user/{llama-server,ricebot}.service` |
 | Current model choice | `~/.config/ricebot/llama.env` |
 | `ricebot` command | `~/.local/bin/ricebot` |
@@ -102,4 +113,6 @@ systemctl --user daemon-reload && ricebot restart
 | Cydonia 24B v4.3 | 14.3 GB | not benchmarked (est. ~12 tok/s) | not benchmarked (est. ~1.5 tok/s) |
 
 A typical reply on the 12B takes ~30–60 s behind the "typing…" indicator.
-Current `.env` tuning: `LLM_MAX_TOKENS=200`, `LLM_TIMEOUT_SECS=300`, `LLM_TEMPERATURE=0.9`.
+Reply length, timeout and temperature are set by `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECS`
+and `LLM_TEMPERATURE` in the server's `.env` (see `.env.example` for all settings).
+On the 12B, keep `LLM_TIMEOUT_SECS` well above `LLM_MAX_TOKENS` ÷ 3 tok/s plus prompt time.

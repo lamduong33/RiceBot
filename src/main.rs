@@ -18,6 +18,10 @@ use crate::{chat::Chat, config::Config, greeter::Greeter, handler::Handler};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env before logging starts so RUST_LOG set there takes effect.
+    // A missing .env file is fine; everything can come from the environment.
+    let _ = dotenvy::dotenv();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
