@@ -4,8 +4,9 @@
 # Get an ID: Discord Settings > Advanced > enable Developer Mode, then
 # right-click a user > Copy User ID.
 #
-# `name` is what RiceBot calls them. `notes` are sent to the model whenever the
-# person talks to RiceBot or is mentioned, so keep them short.
+# `name` is what RiceBot calls them. Everyone's `notes` are sent to the model
+# with every message, so RiceBot knows about people even when they aren't
+# tagged. Keep them short.
 
 [[person]]
 id = 123456789012345678

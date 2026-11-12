@@ -18,6 +18,9 @@ pub struct Person {
 #[derive(Debug, Default)]
 pub struct People {
     by_id: HashMap<UserId, Person>,
+    /// IDs in the order they appear in the file, so the prompt built from
+    /// them is identical every time (which lets llama-server reuse its work).
+    order: Vec<UserId>,
 }
 
 #[derive(Deserialize)]
@@ -50,6 +53,7 @@ impl People {
     fn parse(text: &str) -> Result<Self> {
         let file: PeopleFile = toml::from_str(text)?;
         let mut by_id = HashMap::new();
+        let mut order = Vec::new();
         for Entry { id, name, notes } in file.person {
             if id == 0 {
                 bail!("person {name:?} has an invalid id of 0");
@@ -59,6 +63,7 @@ impl People {
                 bail!("person with id {id} has an empty name");
             }
             let person = Person { name, notes };
+            order.push(UserId::new(id));
             if let Some(previous) = by_id.insert(UserId::new(id), person) {
                 bail!(
                     "id {id} is listed more than once (again after {:?})",
@@ -66,7 +71,7 @@ impl People {
                 );
             }
         }
-        Ok(Self { by_id })
+        Ok(Self { by_id, order })
     }
 
     pub fn get(&self, id: UserId) -> Option<&Person> {
@@ -77,25 +82,25 @@ impl People {
         self.by_id.len()
     }
 
-    /// A paragraph for the system prompt describing the given people, or
-    /// `None` when none of them have notes.
-    pub fn describe(&self, ids: impl IntoIterator<Item = UserId>) -> Option<String> {
-        let mut seen = Vec::new();
-        let mut lines = Vec::new();
-        for id in ids {
-            if seen.contains(&id) {
-                continue;
-            }
-            seen.push(id);
-            if let Some(person) = self.get(id).filter(|p| !p.notes.is_empty()) {
-                lines.push(format!("- {}: {}", person.name, person.notes.join("; ")));
-            }
-        }
+    /// A paragraph for the system prompt describing everyone with notes, in
+    /// file order, or `None` when no one has notes. Sent with every message so
+    /// the bot knows people however they're referred to: by name, nickname,
+    /// "he", or not at all.
+    pub fn describe_all(&self) -> Option<String> {
+        let lines: Vec<String> = self
+            .order
+            .iter()
+            .filter_map(|id| self.get(*id))
+            .filter(|person| !person.notes.is_empty())
+            .map(|person| format!("- {}: {}", person.name, person.notes.join("; ")))
+            .collect();
         if lines.is_empty() {
             return None;
         }
         Some(format!(
-            "What you know about the people in this conversation:\n{}",
+            "# People you know\n\
+             These are people in this server. Use these facts when they come up, \
+             whether or not the person is in the conversation:\n{}",
             lines.join("\n")
         ))
     }
@@ -129,18 +134,21 @@ mod tests {
     }
 
     #[test]
-    fn describes_only_people_with_notes_once() {
-        let people = People::parse(SAMPLE).unwrap();
-        let alex = UserId::new(123456789012345678);
-        let text = people
-            .describe([alex, UserId::new(42), alex, UserId::new(7)])
-            .unwrap();
-        assert_eq!(
-            text,
-            "What you know about the people in this conversation:\n\
-             - Alex: always asks what to eat; mains support"
-        );
-        assert!(people.describe([UserId::new(42)]).is_none());
+    fn describes_everyone_with_notes_in_file_order() {
+        let text = People::parse(&format!(
+            "{SAMPLE}\n[[person]]\nid = 7\nname = \"Kevin\"\nnotes = [\"loves light novels\"]"
+        ))
+        .unwrap()
+        .describe_all()
+        .unwrap();
+        assert!(text.ends_with(
+            "\n- Alex: always asks what to eat; mains support\n\
+             - Kevin: loves light novels"
+        ));
+        assert!(!text.contains("Jordan"), "people without notes are left out");
+
+        let no_notes = People::parse("[[person]]\nid = 42\nname = \"Jordan\"").unwrap();
+        assert!(no_notes.describe_all().is_none());
     }
 
     #[test]
