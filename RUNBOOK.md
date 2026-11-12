@@ -66,7 +66,7 @@ including uncommitted changes. To go back to what's on GitHub, run
 ```sh
 systemctl --user stop ricebot llama-server
 ~/llama.cpp/build/bin/llama-server -m ~/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf \
-  --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 8192
+  --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 16384
 ```
 
 To make a change permanent, edit `deploy/llama-server.service` in the repo (systemd
@@ -122,6 +122,23 @@ A typical reply on the 12B takes ~30–60 s behind the "typing…" indicator.
 Reply length, timeout and temperature are set by `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECS`
 and `LLM_TEMPERATURE` in the server's `.env` (see `.env.example` for all settings).
 On the 12B, keep `LLM_TIMEOUT_SECS` well above `LLM_MAX_TOKENS` ÷ 3 tok/s plus prompt time.
+
+### Context size
+
+`-c 16384` in `deploy/llama-server.service` is shared between the `--parallel 2`
+slots, so each request gets **~8,192 tokens** for everything: personality, chat
+rules, all `people.toml` notes, chat history, the new message and the reply. When
+it's full, llama-server stops the reply early, so replies that end mid-sentence
+with `LLM_MAX_TOKENS=0` usually mean the context ran out.
+
+- **RAM:** about 160 KB per token on both models, so 16384 ≈ 2.6 GB on top of the
+  model. Check `free -g` before raising it further.
+- **Quality:** Mistral Nemo models like Mag-Mell get unreliable past ~16k tokens
+  per request, so there's little point going above `-c 32768` with `--parallel 2`.
+- **Speed:** a bigger `-c` costs nothing by itself; only text actually sent does.
+  The system prompt is identical every message, so llama-server reuses it and only
+  reads the new history and message.
+- After changing `-c`: `systemctl --user daemon-reload && systemctl --user restart llama-server`.
 
 ## First-time setup
 
