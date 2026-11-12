@@ -25,6 +25,58 @@ ricebot model cydonia    # switch model: mag-mell, cydonia, qwen, or a path to a
 After a model switch, llama-server takes ~10–30 s to load; messages sent in that
 window may fail.
 
+## Optional features
+
+Both are off until you turn them on. On an existing install, run `ricebot update`
+first, then follow the section for each feature. Back up `.env` before editing it
+(`cp .env .env.bak`): it isn't in git.
+
+### Reply quotes
+
+When someone replies to a message and mentions RiceBot, the model sees the
+replied-to message: `Garrett: (replying to Kevin: "…") is he right?`. Without this
+feature, RiceBot can only read replies to its own messages and to messages that
+mention it, because Discord withholds other messages' text from bots.
+
+1. In the [Developer Portal](https://discord.com/developers/applications), go to
+   your app → **Bot** and turn on **Message Content Intent**. **Do this first:**
+   if `.env` asks for the intent but the portal toggle is off, Discord refuses the
+   connection and the bot won't start.
+2. Set `DISCORD_MESSAGE_CONTENT=true` in `~/Desktop/Git/RiceBot/.env`.
+3. `ricebot restart`. The log should show `connected to Discord` and no
+   `Disallowed intents` error.
+4. Test it: reply to someone's message with `@RiceBot what do you think?`. The
+   answer should refer to what they said.
+
+### Web search
+
+The model can search the web through a private SearXNG container. Needs Docker.
+
+1. Check that llama-server runs with tool support: `ps -o args= -C llama-server`
+   should include `--jinja` (and `--reasoning-budget 0`). If it doesn't, run
+   `ricebot update`.
+2. Start SearXNG:
+   ```sh
+   cd ~/Desktop/Git/RiceBot/deploy/searxng
+   [ -f .env ] || echo "SEARXNG_SECRET=$(openssl rand -hex 32)" > .env
+   docker compose up -d
+   curl -s '127.0.0.1:8888/search?q=rice&format=json' | head -c 300   # should print JSON
+   ```
+3. Add `SEARXNG_URL=http://127.0.0.1:8888` to `~/Desktop/Git/RiceBot/.env`.
+4. Switch to a model that calls tools (see [Models & speed](#models--speed-threadripper-2970wx-64-gb-ram-cpu-only)).
+   If Qwen isn't downloaded yet (~22 GB):
+   ```sh
+   ln -sf "$(hf download unsloth/Qwen3.6-35B-A3B-GGUF Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf)" ~/models/
+   ricebot model qwen
+   ```
+5. `ricebot restart`. The log should show `web search is on`.
+6. Test it: ask RiceBot a news question, then look for a `web search` line in
+   `ricebot logs | grep -i search`.
+
+Keep SearXNG updated (it talks to the internet): `docker compose pull && docker compose up -d`
+in `deploy/searxng/` every few weeks. Never change its port mapping to anything but
+`127.0.0.1:…`: it has no login and must not be reachable from other machines.
+
 ## When something's wrong
 
 ### 1. Status and recent errors
@@ -83,7 +135,14 @@ curl -s '127.0.0.1:8888/search?q=rice&format=json' | head -c 300
 | No search lines at all, even for news questions | The model isn't calling the tool. That's the model, not the setup: try `ricebot model qwen` |
 | `web search` lines with `results=0` | Search engines may be blocking or rate-limiting the server's IP. It usually clears up; check `docker logs searxng` |
 
-### 5. Try llama-server settings by hand
+### 5. Reply quotes aren't working
+
+| What you see | Cause and fix |
+|---|---|
+| Bot crash-loops with `Disallowed intents` in `ricebot logs` | `DISCORD_MESSAGE_CONTENT=true` but Message Content Intent is off in the Developer Portal. Turn it on, or remove the setting from `.env`, then `ricebot restart` |
+| RiceBot ignores what the replied-to message said | The intent isn't requested. Run `RUST_LOG=rice_bot=debug` and look for `replied-to message has no readable text`, then see [Reply quotes](#reply-quotes) |
+
+### 6. Try llama-server settings by hand
 
 ```sh
 systemctl --user stop ricebot llama-server
@@ -233,19 +292,10 @@ systemctl --user enable ~/Desktop/Git/RiceBot/deploy/{llama-server,ricebot}.serv
 sudo loginctl enable-linger "$USER"
 
 ricebot start && ricebot
-
-# 7. Web search (optional; needs Docker)
-cd ~/Desktop/Git/RiceBot/deploy/searxng
-echo "SEARXNG_SECRET=$(openssl rand -hex 32)" > .env
-docker compose up -d
-curl -s '127.0.0.1:8888/search?q=rice&format=json' | head -c 300   # should print JSON
-echo "SEARXNG_URL=http://127.0.0.1:8888" >> ~/Desktop/Git/RiceBot/.env
-ricebot restart
 ```
 
-Keep SearXNG updated (it talks to the internet): `docker compose pull && docker compose up -d`
-in `deploy/searxng/` every few weeks. Never change its port mapping to anything but
-`127.0.0.1:…`: it has no login and must not be reachable from other machines.
+Then turn on whichever [optional features](#optional-features) you want: reply
+quotes and web search.
 
 `PERSONALITY.md`, `people.toml` and `.env` are not in git, so back them up somewhere
 else. They're the only parts of the setup this section can't rebuild.
