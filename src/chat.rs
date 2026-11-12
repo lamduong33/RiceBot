@@ -12,13 +12,14 @@ use serenity::{
     utils::{ContentSafeOptions, content_safe},
 };
 use tokio::sync::Semaphore;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     config::{ChatConfig, LlmConfig},
     llm::{ChatMessage, LlmClient, Role},
     people::People,
     personality::{self, Source},
+    reply,
 };
 
 /// Discord's limit on the length of a single message, in characters.
@@ -28,6 +29,9 @@ const EMPTY_PROMPT_REPLY: &str = "Hi! Mention me together with a question and I'
 /// Sent as `@RiceBot !reload`. The bot doesn't request the message content
 /// intent, so commands have to mention it like any other message.
 const RELOAD_COMMAND: &str = "!reload";
+/// The name the personality gives the bot, stripped from the start of replies
+/// along with its Discord username.
+const BOT_NAME: &str = "RiceBot";
 const LLM_ERROR_REPLY: &str = "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
 
 pub struct Chat {
@@ -97,8 +101,10 @@ impl Chat {
         info!(user = %msg.author.id, channel = %msg.channel_id, "answering mention");
 
         let question = ChatMessage::new(Role::User, format!("{author}: {prompt}"));
+        let history = self.recent_history(msg.channel_id);
+        let speakers = speaker_names(&author, &knowledge.people, &history);
         let mut conversation = vec![ChatMessage::new(Role::System, knowledge.system_prompt.as_str())];
-        conversation.extend(self.recent_history(msg.channel_id));
+        conversation.extend(history);
         conversation.push(question.clone());
 
         let typing = msg.channel_id.start_typing(&ctx.http);
@@ -109,7 +115,15 @@ impl Chat {
         typing.stop();
 
         match result {
-            Ok(answer) => {
+            Ok(raw) => {
+                let bot_name = ctx.cache.current_user().name.clone();
+                let others: Vec<&str> = speakers.iter().map(String::as_str).collect();
+                let answer = reply::clean(&raw, &[BOT_NAME, &bot_name], &others);
+                if answer != raw {
+                    debug!(raw = %raw, "removed transcript-style text from the reply");
+                }
+                // Saving the cleaned reply keeps a bad one from teaching the
+                // model to do it again.
                 send_reply(ctx, msg, &answer).await;
                 self.remember(msg.channel_id, question, ChatMessage::new(Role::Assistant, answer));
             }
@@ -199,6 +213,24 @@ fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
     info!(count = people.len(), file = %files.people_file.display(), "loaded people");
 
     Ok(Knowledge { system_prompt, personality_source, people })
+}
+
+/// Names that can appear as "Name:" labels for people other than the bot:
+/// the author, everyone in `people.toml` and everyone in the channel's memory.
+fn speaker_names(author: &str, people: &People, history: &[ChatMessage]) -> Vec<String> {
+    let from_history = history
+        .iter()
+        .filter(|message| message.role == Role::User)
+        .filter_map(|message| message.content.split_once(": "))
+        .map(|(name, _)| name);
+    let mut names: Vec<String> = Vec::new();
+    for name in std::iter::once(author).chain(people.names()).chain(from_history) {
+        let name = name.trim();
+        if !name.is_empty() && !names.iter().any(|known| known.eq_ignore_ascii_case(name)) {
+            names.push(name.to_owned());
+        }
+    }
+    names
 }
 
 /// Whether `user` owns the bot's Discord application, directly or through a team.
