@@ -6,12 +6,16 @@ A Discord bot written with [serenity](https://github.com/serenity-rs/serenity) a
 - **Greets** people joining a voice channel: it joins, plays `welcome.mp3`, and
   leaves as soon as the file finishes.
 - **Chats** when mentioned (`@RiceBot what's for dinner?`), answering with a
-  locally hosted LLM. No external API is used.
+  locally hosted LLM. No cloud AI API is used.
+- **Looks things up** on the web when it needs to (optional): the model decides
+  when to search, through a private, self-hosted [SearXNG](https://docs.searxng.org/).
 
 ## Architecture
 
 ```
 Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.gguf
+              │
+              └──HTTP (127.0.0.1)──▶ SearXNG ──▶ search engines   (optional)
 ```
 
 | File | Purpose |
@@ -24,7 +28,8 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
 | `src/personality.rs` | Loads `PERSONALITY.md` and adds the fixed chat rules |
 | `src/reply.rs` | Cleans transcript-style replies (`RiceBot: Garrett: …`) before sending |
 | `src/people.rs` | People the bot knows (`people.toml`), keyed by Discord user ID |
-| `src/llm.rs` | Client for the OpenAI-compatible `/v1/chat/completions` API |
+| `src/llm.rs` | Client for the OpenAI-compatible `/v1/chat/completions` API, with tool calls |
+| `src/search.rs` | `web_search` tool backed by SearXNG |
 
 ## Setup
 
@@ -106,6 +111,34 @@ what do you think about pineapple on pizza @RiceBot
     `CHAT_HISTORY_MESSAGES` if conversations feel forgetful.
 - **Errors:** if the LLM server isn't running or doesn't answer within
   `LLM_TIMEOUT_SECS`, RiceBot apologises instead of replying.
+
+### Web search
+
+If `SEARXNG_URL` is set, RiceBot can search the web on its own: ask
+`@RiceBot who won the game last night?` and the model decides whether it needs to
+look it up. It searches at most `SEARCH_MAX_CALLS` times per message (default 2),
+reads the top `SEARCH_MAX_RESULTS` results (default 5), then answers in character,
+with a link when useful.
+
+- **Needs a model that can call tools** and llama-server started with `--jinja`
+  (already in `deploy/llama-server.service`). Roleplay finetunes are often bad at
+  it; see the runbook for model choices. If the server rejects tools, RiceBot
+  answers without searching.
+- **Private search:** SearXNG runs on the same machine, listens on 127.0.0.1 only,
+  and needs no account or API key. Search engines see queries from the server's IP
+  with no identity attached. Setup is in `RUNBOOK.md` and `deploy/searxng/`.
+- **Safety:** results are text from strangers, so:
+  - only titles, snippets and links are used. Pages are never opened, so a result
+    can't make the bot request addresses on your network;
+  - results are labelled as untrusted information, not instructions;
+  - search is the only tool. The bot can't run commands, read files or post
+    anywhere but its reply, and replies can't ping anyone but the author.
+
+  A page can still try to mislead the model, so treat answers built on search
+  results like anything else you read online.
+- **Slower:** a search means the model writes twice (the search, then the answer)
+  and reads the results, so expect noticeably longer replies when it searches.
+- Searches and their result counts are logged at info level (`ricebot logs`).
 
 ### `!reload`
 

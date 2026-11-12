@@ -11,6 +11,30 @@ pub struct Config {
     pub greeter: GreeterConfig,
     pub llm: LlmConfig,
     pub chat: ChatConfig,
+    pub search: SearchConfig,
+}
+
+/// Web search through SearXNG. Off unless `SEARXNG_URL` is set.
+#[derive(Debug, Clone)]
+pub struct SearchConfig {
+    /// Base URL of a SearXNG instance with the JSON format enabled.
+    pub url: Option<String>,
+    /// Searches the model may run for one message.
+    pub max_calls: usize,
+    /// Results handed to the model per search.
+    pub max_results: usize,
+    pub timeout: Duration,
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            url: None,
+            max_calls: 2,
+            max_results: 5,
+            timeout: Duration::from_secs(15),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -108,8 +132,23 @@ impl Config {
                 history_messages: optional("CHAT_HISTORY_MESSAGES")?.unwrap_or(10),
                 memory_scope: optional("CHAT_MEMORY_SCOPE")?.unwrap_or(MemoryScope::Channel),
             },
+            search: {
+                let defaults = SearchConfig::default();
+                SearchConfig {
+                    url: optional::<String>("SEARXNG_URL")?
+                        .map(|url| url.trim_end_matches('/').to_owned()),
+                    max_calls: optional("SEARCH_MAX_CALLS")?.unwrap_or(defaults.max_calls),
+                    max_results: optional("SEARCH_MAX_RESULTS")?.unwrap_or(defaults.max_results),
+                    timeout: optional("SEARCH_TIMEOUT_SECS")?
+                        .map(Duration::from_secs)
+                        .unwrap_or(defaults.timeout),
+                }
+            },
         };
 
+        if config.search.max_results == 0 {
+            bail!("SEARCH_MAX_RESULTS must be at least 1");
+        }
         if config.llm.max_concurrency == 0 {
             bail!("LLM_MAX_CONCURRENCY must be at least 1");
         }

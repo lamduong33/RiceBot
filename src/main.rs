@@ -9,6 +9,7 @@ mod llm;
 mod people;
 mod personality;
 mod reply;
+mod search;
 
 use anyhow::{Context as _, Result};
 use serenity::{Client, all::GatewayIntents};
@@ -33,7 +34,7 @@ async fn main() -> Result<()> {
 
     let config = Config::from_env()?;
     let greeter = Greeter::load(&config.greeter).await?;
-    let chat = Chat::new(&config.chat, &config.llm)?;
+    let chat = Chat::new(&config.chat, &config.llm, &config.search)?;
 
     // Discord sends message content for messages that mention the bot even
     // without the privileged MESSAGE_CONTENT intent, so it isn't requested.
