@@ -7,7 +7,7 @@ rust-version = "1.85"
 [dependencies]
 anyhow = "1"
 dotenvy = "0.15"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
 serde = { version = "1", features = ["derive"] }
 serenity = { version = "0.12", default-features = false, features = [
     "builder",
@@ -15,13 +15,28 @@ serenity = { version = "0.12", default-features = false, features = [
     "client",
     "gateway",
     "model",
-    "rustls_backend",
+    "native_tls_backend",
     "utils",
     "voice",
 ] }
-songbird = "0.6"
+# TLS goes through the system's native stack (OpenSSL on Linux) instead of
+# rustls, so rustls/rustls-webpki never enter the dependency graph.
+songbird = { version = "0.6", default-features = false, features = [
+    "driver",
+    "gateway",
+    "native",
+    "serenity",
+    "tungstenite",
+] }
 # Songbird only decodes the formats enabled here.
 symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# hpke-rs (pulled in by songbird -> davey -> openmls for Discord's DAVE voice
+# encryption) declares an optional libcrux backend that is never enabled, but
+# still lands libcrux-chacha20poly1305 in Cargo.lock. This vendored copy is
+# upstream 0.6.1 with only that unused backend removed.
+[patch.crates-io]
+hpke-rs = { path = "vendor/hpke-rs" }
