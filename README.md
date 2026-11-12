@@ -41,8 +41,8 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
      yours; it becomes the system prompt.
    - **People:** `cp people.example.toml people.toml` and fill in Discord user
      IDs (Developer Mode → right-click a user → *Copy User ID*). RiceBot calls
-     them by `name` and sees their `notes` when they talk to it or are
-     mentioned. After editing either file, send `@RiceBot !reload` in Discord
+     them by `name` and always knows everyone's `notes`, whether or not they're
+     tagged. After editing either file, send `@RiceBot !reload` in Discord
      (or restart the bot).
 4. **Run:** `cargo run --release`
 
@@ -90,8 +90,9 @@ what do you think about pineapple on pizza @RiceBot
   your `name` from `people.toml` if you're listed there, otherwise your server
   nickname or display name. Other people you mention are shown to it the same way,
   and its replies never ping anyone except you.
-- **People:** for the author and anyone they mention, RiceBot also sees their
-  `notes` from `people.toml`.
+- **People:** RiceBot always has everyone's `notes` from `people.toml`, so "tell me
+  about Kevin" works without tagging Kevin, and so do follow-ups like "what else is
+  he into?".
 - **Memory:** RiceBot remembers its recent exchanges in each channel separately: the
   last `CHAT_HISTORY_MESSAGES` messages (default 10, which is 5 questions and
   answers). It only sees messages that mention it, not the rest of the channel.
@@ -130,11 +131,13 @@ it reads before the conversation. That prompt is built from three parts:
 2. **Fixed chat rules** added by the code (in `src/personality.rs`). These explain
    that it's on Discord, that each message starts with the sender's name, and that
    its replies shouldn't start with its own name.
-3. **Notes from `people.toml`** about the author and anyone they mentioned, if any.
+3. **Everyone's notes from `people.toml`**, in file order. People without notes are
+   left out.
 
 Because the chat rules are added separately, you can rewrite the personality file
-however you like without breaking how the chat works. After the system prompt come
-the remembered messages for that channel, then the new message.
+however you like without breaking how the chat works. The system prompt is the same for
+every message, so llama-server can reuse its work on it instead of re-reading it
+each time. After the system prompt come the remembered messages for that channel, then the new message.
 
 | Situation | Result |
 | --- | --- |
@@ -176,12 +179,12 @@ Tips:
   than "be witty". Write them as `Name: message` and `RiceBot: reply`, the same way
   RiceBot sees real messages.
 - **Put facts about people in `people.toml`.** They're keyed by Discord ID, so they
-  survive nickname changes, and they're only sent when that person is in the
-  conversation. Be specific: "always picks the healer and complains about it" gives
+  survive nickname changes. Be specific: "always picks the healer and complains about it" gives
   RiceBot something to work with; "is cool" doesn't.
-- **Keep it to a page or two.** The whole file is sent with every message, and it
-  shares the model's context window (llama-server's `-c` option) with the chat
-  history. A long file leaves less room for the conversation and makes replies slower.
+- **Keep it to a page or two.** The whole file, plus every note in `people.toml`, is
+  sent with every message, and it shares the model's context window (llama-server's
+  `-c` option) with the chat history. A long prompt leaves less room for the
+  conversation and makes the first reply after a start or `!reload` slower.
 - **Say what to avoid.** If there are topics or jokes that are off limits, list them.
 - **Tune with `!reload`.** Edit the file, send `@RiceBot !reload`, chat a little,
   repeat.

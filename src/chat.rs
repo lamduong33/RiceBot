@@ -46,7 +46,8 @@ pub struct Chat {
 
 /// What the bot is told before every conversation: who it is and who it knows.
 struct Knowledge {
-    /// The personality file plus the fixed chat rules.
+    /// The personality file, the fixed chat rules and everyone's notes. The
+    /// same for every message, so llama-server can reuse its work on it.
     system_prompt: String,
     personality_source: Source,
     people: People,
@@ -96,10 +97,7 @@ impl Chat {
         info!(user = %msg.author.id, channel = %msg.channel_id, "answering mention");
 
         let question = ChatMessage::new(Role::User, format!("{author}: {prompt}"));
-        let mut conversation = vec![ChatMessage::new(
-            Role::System,
-            system_prompt_for(&knowledge, msg, bot_id),
-        )];
+        let mut conversation = vec![ChatMessage::new(Role::System, knowledge.system_prompt.as_str())];
         conversation.extend(self.recent_history(msg.channel_id));
         conversation.push(question.clone());
 
@@ -182,9 +180,14 @@ impl Chat {
 
 /// Reads the personality and people files, logging what was loaded.
 fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
-    let (system_prompt, personality_source) =
+    let (mut system_prompt, personality_source) =
         personality::load(&files.personality_file, files.personality_file_required)?;
     let people = People::load(&files.people_file, files.people_file_required)?;
+    // Everyone's notes go in the single system message, because some chat
+    // templates reject more than one.
+    if let Some(notes) = people.describe_all() {
+        system_prompt = format!("{system_prompt}\n\n{notes}");
+    }
 
     match personality_source {
         Source::File => info!(file = %files.personality_file.display(), "loaded personality"),
@@ -196,24 +199,6 @@ fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
     info!(count = people.len(), file = %files.people_file.display(), "loaded people");
 
     Ok(Knowledge { system_prompt, personality_source, people })
-}
-
-/// The system prompt plus notes on the author and anyone they mentioned.
-/// Notes go in the single system message because some chat templates reject
-/// more than one.
-fn system_prompt_for(knowledge: &Knowledge, msg: &Message, bot_id: UserId) -> String {
-    let mentioned = msg
-        .mentions
-        .iter()
-        .map(|user| user.id)
-        .filter(|&id| id != bot_id);
-    match knowledge
-        .people
-        .describe(std::iter::once(msg.author.id).chain(mentioned))
-    {
-        Some(notes) => format!("{}\n\n{notes}", knowledge.system_prompt),
-        None => knowledge.system_prompt.clone(),
-    }
 }
 
 /// Whether `user` owns the bot's Discord application, directly or through a team.
