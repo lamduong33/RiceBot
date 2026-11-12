@@ -2,7 +2,8 @@
 
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{Mutex, PoisonError},
+    path::PathBuf,
+    sync::{Mutex, PoisonError, RwLock},
 };
 
 use anyhow::Result;
@@ -17,30 +18,47 @@ use tracing::{error, info, warn};
 use crate::{
     config::{ChatConfig, LlmConfig},
     llm::{ChatMessage, LlmClient, Role},
+    personality::{self, Source},
 };
 
 /// Discord's limit on the length of a single message, in characters.
 const MESSAGE_LIMIT: usize = 2000;
 
 const EMPTY_PROMPT_REPLY: &str = "Hi! Mention me together with a question and I'll do my best to answer.";
+/// Sent as `@RiceBot !reload`. The bot doesn't request the message content
+/// intent, so commands have to mention it like any other message.
+const RELOAD_COMMAND: &str = "!reload";
+
 const LLM_ERROR_REPLY: &str = "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
 
 pub struct Chat {
     llm: LlmClient,
     /// Limits how many requests are sent to the model at once.
     permits: Semaphore,
-    system_prompt: String,
+    personality_path: PathBuf,
+    /// Personality plus chat rules; replaced by `!reload`.
+    system_prompt: RwLock<String>,
     history_len: usize,
     /// Recent conversation per channel, oldest first.
     history: Mutex<HashMap<ChannelId, VecDeque<ChatMessage>>>,
 }
 
 impl Chat {
-    pub fn new(chat: &ChatConfig, llm: &LlmConfig) -> Result<Self> {
+    pub async fn new(chat: &ChatConfig, llm: &LlmConfig) -> Result<Self> {
+        let (system_prompt, source) = personality::load(&chat.personality_path).await?;
+        match source {
+            Source::File => info!(path = %chat.personality_path.display(), "loaded personality"),
+            Source::Default => warn!(
+                path = %chat.personality_path.display(),
+                "personality file not found, using the default personality"
+            ),
+        }
+
         Ok(Self {
             llm: LlmClient::new(llm)?,
             permits: Semaphore::new(llm.max_concurrency),
-            system_prompt: chat.system_prompt.clone(),
+            personality_path: chat.personality_path.clone(),
+            system_prompt: RwLock::new(system_prompt),
             history_len: chat.history_messages,
             history: Mutex::default(),
         })
@@ -57,6 +75,10 @@ impl Chat {
             send_reply(ctx, msg, EMPTY_PROMPT_REPLY).await;
             return;
         }
+        if prompt.eq_ignore_ascii_case(RELOAD_COMMAND) {
+            self.reload(ctx, msg).await;
+            return;
+        }
 
         let author = msg
             .member
@@ -66,7 +88,8 @@ impl Chat {
         info!(user = %msg.author.id, channel = %msg.channel_id, "answering mention");
 
         let question = ChatMessage::new(Role::User, format!("{author}: {prompt}"));
-        let mut conversation = vec![ChatMessage::new(Role::System, self.system_prompt.as_str())];
+        let system_prompt = self.system_prompt.read().unwrap_or_else(PoisonError::into_inner).clone();
+        let mut conversation = vec![ChatMessage::new(Role::System, system_prompt)];
         conversation.extend(self.recent_history(msg.channel_id));
         conversation.push(question.clone());
 
@@ -89,6 +112,40 @@ impl Chat {
         }
     }
 
+    /// Re-reads the personality file. Only the bot's owner (or members of the
+    /// team that owns it) may do this.
+    async fn reload(&self, ctx: &Context, msg: &Message) {
+        if !is_bot_owner(ctx, msg.author.id).await {
+            info!(user = %msg.author.id, "ignored !reload from someone who doesn't own the bot");
+            send_reply(ctx, msg, "Only my owner can reload my personality.").await;
+            return;
+        }
+
+        let reply = match personality::load(&self.personality_path).await {
+            Ok((system_prompt, source)) => {
+                *self.system_prompt.write().unwrap_or_else(PoisonError::into_inner) = system_prompt;
+                // Old replies would keep nudging the model towards the old personality.
+                self.history.lock().unwrap_or_else(PoisonError::into_inner).clear();
+                info!(path = %self.personality_path.display(), ?source, "reloaded personality");
+                match source {
+                    Source::File => format!(
+                        "Reloaded my personality from `{}` and cleared my chat memory.",
+                        self.personality_path.display()
+                    ),
+                    Source::Default => format!(
+                        "`{}` doesn't exist, so I'm back to my default personality. Cleared my chat memory.",
+                        self.personality_path.display()
+                    ),
+                }
+            }
+            Err(e) => {
+                warn!("could not reload personality: {e:#}");
+                format!("Couldn't reload my personality, so I'm keeping the current one: {e:#}")
+            }
+        };
+        send_reply(ctx, msg, &reply).await;
+    }
+
     fn recent_history(&self, channel_id: ChannelId) -> Vec<ChatMessage> {
         self.history
             .lock()
@@ -107,6 +164,23 @@ impl Chat {
         messages.extend([question, answer]);
         while messages.len() > self.history_len {
             messages.pop_front();
+        }
+    }
+}
+
+/// Whether `user` owns the bot's Discord application, directly or through a team.
+async fn is_bot_owner(ctx: &Context, user: UserId) -> bool {
+    match ctx.http.get_current_application_info().await {
+        Ok(app) => {
+            app.owner.as_ref().is_some_and(|owner| owner.id == user)
+                || app
+                    .team
+                    .as_ref()
+                    .is_some_and(|team| team.members.iter().any(|member| member.user.id == user))
+        }
+        Err(e) => {
+            warn!("could not look up the bot's owner: {e}");
+            false
         }
     }
 }

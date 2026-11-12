@@ -9,6 +9,9 @@ target
 
 # Secrets
 .env
+
+# Personal bot personality (copy from PERSONALITY.example.md)
+PERSONALITY.md
 ricebot_token.txt
 
 # LLM models

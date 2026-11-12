@@ -20,7 +20,8 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
 | `src/config.rs` | Settings from environment variables / `.env` |
 | `src/handler.rs` | Routes Discord events to the features |
 | `src/greeter.rs` | Voice join → play → leave, one greeting per server at a time |
-| `src/chat.rs` | Mention handling, per-channel history, splitting long replies |
+| `src/chat.rs` | Mention handling, per-channel history, splitting long replies, `!reload` |
+| `src/personality.rs` | Loads `PERSONALITY.md` and adds the fixed chat rules |
 | `src/llm.rs` | Client for the OpenAI-compatible `/v1/chat/completions` API |
 
 ## Setup
@@ -35,7 +36,137 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
    llama-server -m model.gguf --host 127.0.0.1 --port 8080 -t <physical cores> --parallel 2
    ```
 3. **Configure:** `cp .env.example .env` and set `DISCORD_TOKEN`.
-4. **Run:** `cargo run --release`
+4. **Personality:** `cp PERSONALITY.example.md PERSONALITY.md` and make it your own
+   (see below).
+5. **Run:** `cargo run --release`
+
+## Using RiceBot
+
+RiceBot has no slash commands. It reacts to voice activity and to messages that
+mention it.
+
+| What you do | What RiceBot does | Who can do it |
+| --- | --- | --- |
+| Join a voice channel | Joins, plays the welcome sound, then leaves | Everyone |
+| `@RiceBot <message>` | Replies in character using the local LLM | Everyone |
+| `@RiceBot` on its own | Replies with a short hint on how to talk to it | Everyone |
+| `@RiceBot !reload` | Re-reads `PERSONALITY.md` and clears its chat memory | Bot owner only |
+
+### Voice greeting
+
+When someone joins a voice channel from outside voice, RiceBot joins that channel,
+plays `GREETING_AUDIO` (default `welcome.mp3`) and leaves as soon as it finishes, or
+after `GREETING_MAX_SECS` (default 30) at most.
+
+- Moving between channels, muting, deafening and leaving don't trigger a greeting.
+- Other bots joining are ignored.
+- One greeting runs per server at a time. If two people join at once, only the first
+  is greeted.
+
+### Chatting
+
+Mention RiceBot anywhere in a message to talk to it:
+
+```
+@RiceBot what should I cook tonight?
+what do you think about pineapple on pizza @RiceBot
+```
+
+- **Where:** any server text channel RiceBot can read and post in. It doesn't answer
+  direct messages.
+- **Replies** go to your message as a Discord reply. RiceBot shows a typing
+  indicator while it thinks. Replies longer than Discord's 2,000-character limit are
+  split over several messages.
+- **Names:** RiceBot sees your server nickname (or your display name) before each
+  message, so it knows who is talking. Other people you mention are shown to it as
+  names, and its replies never ping anyone except you.
+- **Memory:** RiceBot remembers its recent exchanges in each channel separately: the
+  last `CHAT_HISTORY_MESSAGES` messages (default 10, which is 5 questions and
+  answers). It only sees messages that mention it, not the rest of the channel.
+  Memory is kept in RAM, so it's lost on restart and on `!reload`.
+- **Errors:** if the LLM server isn't running or doesn't answer within
+  `LLM_TIMEOUT_SECS`, RiceBot apologises instead of replying.
+
+### `!reload`
+
+`@RiceBot !reload` applies changes to `PERSONALITY.md` without restarting the bot:
+
+1. RiceBot checks that you own the bot's Discord application, or are on the team that
+   owns it. Anyone else gets a refusal.
+2. It re-reads the personality file and replaces its current personality.
+3. It clears its chat memory in every channel, so its old replies don't pull it back
+   towards the previous personality.
+4. It confirms in the channel. If the file is empty or can't be read, it keeps the
+   current personality and replies with the error instead.
+
+The mention is required. RiceBot only receives the text of messages that mention it,
+so a plain `!reload` never reaches it. The command isn't case-sensitive.
+
+## Personality
+
+`PERSONALITY.md` decides who RiceBot is and what it knows. It's a plain Markdown file
+in the project folder, read when the bot starts and again on `@RiceBot !reload`.
+
+### How it works
+
+With every message, RiceBot sends the model a *system prompt*: standing instructions
+it reads before the conversation. That prompt is built from two parts:
+
+1. **Your personality file**, exactly as written.
+2. **Fixed chat rules** added by the code (in `src/personality.rs`). These explain
+   that it's on Discord, that each message starts with the sender's name, and that
+   its replies shouldn't start with its own name.
+
+Because the chat rules are added separately, you can rewrite the personality file
+however you like without breaking how the chat works. After the system prompt come
+the remembered messages for that channel, then the new message.
+
+| Situation | Result |
+| --- | --- |
+| File exists and has text | That personality is used |
+| File doesn't exist | A short default personality is used, and a warning is logged |
+| File is empty | Error: the bot won't start, or `!reload` keeps the current personality |
+
+### Setting it up
+
+```sh
+cp PERSONALITY.example.md PERSONALITY.md
+```
+
+`PERSONALITY.md` is in `.gitignore`, because it usually contains details about your
+friends and your server. `PERSONALITY.example.md` is the committed template. To use a
+file with a different name or location, set `PERSONALITY_FILE` in `.env`, for example
+`PERSONALITY_FILE=personalities/pirate.md`.
+
+### Writing a good personality
+
+Write the file as instructions addressed to RiceBot ("You are…", "You know…"). The
+template uses these sections, but any structure works:
+
+| Section | What to put in it |
+| --- | --- |
+| **Who you are** | The character in a few sentences: who RiceBot is and its attitude |
+| **Personality and voice** | Traits, sense of humour, catchphrases, things it loves or hates |
+| **What you know** | Facts about your server, its members, inside jokes, recurring events |
+| **How you talk** | Reply length, tone, emoji, formatting, whether to stay in character |
+| **Example exchanges** | A few sample messages and the replies you'd want |
+
+Tips:
+
+- **Examples beat adjectives.** Two or three sample exchanges teach a voice far better
+  than "be witty". Write them as `Name: message` and `RiceBot: reply`, the same way
+  RiceBot sees real messages.
+- **Be specific about people.** "Sam always picks the healer and complains about it"
+  gives RiceBot something to work with; "Sam is cool" doesn't.
+- **Keep it to a page or two.** The whole file is sent with every message, and it
+  shares the model's context window (llama-server's `-c` option) with the chat
+  history. A long file leaves less room for the conversation and makes replies slower.
+- **Say what to avoid.** If there are topics or jokes that are off limits, list them.
+- **Tune with `!reload`.** Edit the file, send `@RiceBot !reload`, chat a little,
+  repeat.
+- **The model matters too.** Heavily safety-tuned models break character more often.
+  `LLM_TEMPERATURE` in `.env` (default 0.7) controls how creative replies are: higher
+  is more varied, lower is more predictable.
 
 ## Development
 

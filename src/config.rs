@@ -5,10 +5,6 @@ use std::{env, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result, bail};
 
-const DEFAULT_SYSTEM_PROMPT: &str = "You are RiceBot, a friendly and witty Discord bot. \
-     Messages are prefixed with the sender's name. \
-     Keep answers short and conversational, and use Discord markdown when it helps.";
-
 #[derive(Debug, Clone)]
 pub struct Config {
     pub discord_token: String,
@@ -42,7 +38,9 @@ pub struct LlmConfig {
 
 #[derive(Debug, Clone)]
 pub struct ChatConfig {
-    pub system_prompt: String,
+    /// Markdown file describing RiceBot's personality and knowledge. Read at
+    /// startup and again on `!reload`.
+    pub personality_path: PathBuf,
     /// Previous messages per channel sent along as context.
     pub history_messages: usize,
 }
@@ -72,8 +70,8 @@ impl Config {
                 max_concurrency: optional("LLM_MAX_CONCURRENCY")?.unwrap_or(2),
             },
             chat: ChatConfig {
-                system_prompt: optional("SYSTEM_PROMPT")?
-                    .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.into()),
+                personality_path: optional("PERSONALITY_FILE")?
+                    .unwrap_or_else(|| "PERSONALITY.md".into()),
                 history_messages: optional("CHAT_HISTORY_MESSAGES")?.unwrap_or(10),
             },
         };
