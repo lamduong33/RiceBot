@@ -18,7 +18,7 @@ ricebot              # are both up? which model?
 ricebot logs         # live bot logs (Ctrl+C to exit); `ricebot logs llama-server` for the LLM
 ricebot restart      # after editing .env (PERSONALITY.md / people.toml: `@RiceBot !reload` in Discord)
 ricebot stop|start   # take offline / bring back
-ricebot update       # after code changes: git pull, build, restart
+ricebot update       # after code changes: git pull, build, restart (llama-server too if its unit changed)
 ricebot model cydonia    # switch model: mag-mell, cydonia, qwen, or a path to any .gguf
 ```
 
@@ -88,8 +88,13 @@ curl -s '127.0.0.1:8888/search?q=rice&format=json' | head -c 300
 ```sh
 systemctl --user stop ricebot llama-server
 ~/llama.cpp/build/bin/llama-server -m ~/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf \
-  --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 32768 --jinja
+  --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 32768 --jinja --reasoning-budget 0
 ```
+
+`--jinja` (on by default in current llama.cpp, listed so it's explicit) uses the
+model's own chat template, which tool calls need. `--reasoning-budget 0` turns off
+"thinking" for models that have it, like Qwen3.6; on a CPU, thinking before every
+reply would take minutes. Models without thinking ignore it.
 
 To make a change permanent, edit `deploy/llama-server.service` in the repo (systemd
 reads it through a symlink), then:
@@ -103,7 +108,10 @@ Commit the change so the repo stays the source of truth.
 ## Gotchas
 
 - **Any edit to a `.service` file needs `systemctl --user daemon-reload`** before
-  restarting, or systemd keeps using the old version. `ricebot update` does this for you.
+  restarting, or systemd keeps using the old version. `ricebot update` does this for you,
+  restarts llama-server when `deploy/llama-server.service` changed, and warns if the
+  units aren't linked to `deploy/`. To check what's actually running:
+  `ps -o args= -C llama-server` (compare `-c`, `--jinja` etc. with the unit file).
 - **A crashing service retries forever** (every 5 s for llama-server, 10 s for the bot),
   so a broken config shows up as `activating (auto-restart)` rather than `failed`.
   `ricebot stop` while you fix it, so the logs don't fill with the same error. If a
@@ -134,21 +142,24 @@ Commit the change so the repo stays the source of truth.
 | Models (symlinks into `~/.cache/huggingface/`, don't delete that cache) | `~/models/` |
 | SearXNG config (`compose.yaml`, `settings.yml`; secret in git-ignored `.env`) | `~/Desktop/Git/RiceBot/deploy/searxng/` |
 
-## Models & speed (Threadripper 2970WX, CPU only)
+## Models & speed (Threadripper 2970WX, 64 GB RAM, CPU only)
 
 | Model | Size | Prompt reading | Reply writing |
 |---|---|---|---|
 | **Mag-Mell 12B** (default) | 7.5 GB | ~22–29 tok/s | ~3.3 tok/s (12 threads) |
 | Cydonia 24B v4.3 | 14.3 GB | not benchmarked (est. ~12 tok/s) | not benchmarked (est. ~1.5 tok/s) |
-| Qwen3-30B-A3B Instruct 2507 | ~18.6 GB | not benchmarked | not benchmarked (only ~3B of its 30B parameters work per token, so it should be several times faster than Cydonia) |
+| Qwen3.6-35B-A3B (UD-Q4_K_XL) | 22.4 GB | not benchmarked | not benchmarked (est. ~10–15 tok/s: only ~3B of its 35B parameters work per token) |
 
 **Web search needs a model that can call tools.** Mag-Mell is a roleplay merge and
 rarely calls them. Cydonia is built on Mistral Small 3.2, which can, but the
-roleplay tuning may have weakened it. Qwen3-30B-A3B is good at tool calls but more
-polite, so the personality may come out tamer. Try them with `ricebot model …`:
-ask a news question in Discord and watch `ricebot logs` for a `web search` line.
-Use the **Instruct 2507** Qwen, not the original Qwen3, which "thinks" at length
-before every answer.
+roleplay tuning may have weakened it, and at ~1.5 tok/s it's slow.
+**Qwen3.6-35B-A3B is the recommended model for search**: native tool calling, and a
+mixture-of-experts model, so it should write faster than Mag-Mell despite its size.
+It's more polite than Mag-Mell, so check the personality still comes through.
+`--reasoning-budget 0` keeps it from "thinking" before every reply. Try models with
+`ricebot model …`: ask a news question in Discord and watch `ricebot logs` for a
+`web search` line. Not considered: gpt-oss-20b (its safety tuning fights the
+character) and other dense 24B+ models (~1.5 tok/s).
 
 A typical reply on the 12B takes ~30–60 s behind the "typing…" indicator.
 Reply length, timeout and temperature are set by `LLM_MAX_TOKENS`, `LLM_TIMEOUT_SECS`
@@ -207,7 +218,7 @@ cmake --build ~/llama.cpp/build -j --target llama-server
 mkdir -p ~/models
 ln -sf "$(hf download bartowski/MN-12B-Mag-Mell-R1-GGUF MN-12B-Mag-Mell-R1-Q4_K_M.gguf)" ~/models/
 ln -sf "$(hf download bartowski/TheDrummer_Cydonia-24B-v4.3-GGUF TheDrummer_Cydonia-24B-v4.3-Q4_K_M.gguf)" ~/models/
-ln -sf "$(hf download unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf)" ~/models/
+ln -sf "$(hf download unsloth/Qwen3.6-35B-A3B-GGUF Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf)" ~/models/
 
 # 4. Model choice (absolute path: systemd doesn't expand ~ in this file)
 mkdir -p ~/.config/ricebot

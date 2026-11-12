@@ -13,14 +13,27 @@ case "${1:-status}" in
            grep '^MODEL=' "$ENVF" ;;
   logs)    journalctl --user -f -u "${2:-ricebot}" ;;
   # daemon-reload picks up any changes to the linked deploy/*.service files.
-  update)  (cd "$REPO" && git pull && cargo build --release)
+  # llama-server is only restarted when its unit changed, since reloading the
+  # model takes a while.
+  update)  cd "$REPO"
+           unit_before=$(git rev-parse HEAD:deploy/llama-server.service 2>/dev/null || true)
+           git pull && cargo build --release
+           unit_after=$(git rev-parse HEAD:deploy/llama-server.service 2>/dev/null || true)
+           for svc in "${SVCS[@]}"; do
+             [[ -L "$HOME/.config/systemd/user/$svc.service" ]] ||
+               echo "warning: ~/.config/systemd/user/$svc.service isn't linked to deploy/, so changes there don't apply (see RUNBOOK.md)" >&2
+           done
            systemctl --user daemon-reload
+           if [[ "$unit_before" != "$unit_after" ]]; then
+             echo "deploy/llama-server.service changed, restarting llama-server"
+             systemctl --user restart llama-server
+           fi
            systemctl --user restart ricebot ;;
   model)
     case "${2:-}" in
       mag-mell) m="$HOME/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf" ;;
       cydonia)  m="$HOME/models/TheDrummer_Cydonia-24B-v4.3-Q4_K_M.gguf" ;;
-      qwen)     m="$HOME/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf" ;;
+      qwen)     m="$HOME/models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf" ;;
       "")       grep '^MODEL=' "$ENVF"; exit 0 ;;
       *)        m="$2" ;;
     esac
