@@ -23,6 +23,15 @@ they said.
 anyone else's, don't repeat the message you're answering, and never write \
 lines for other people.";
 
+/// Added after the chat rules when chat memory is shared across a server, so
+/// the model can tell conversations in different channels apart.
+pub const SERVER_MEMORY_RULES: &str = "\
+- You remember recent conversations from every channel in this server. Each \
+message starts with the channel it was sent in, for example \
+\"[#gaming] Sam: gg\". Answer the latest message, in the context of its \
+channel. Bring up something from another channel only when it's relevant, and \
+don't start your reply with a channel tag.";
+
 /// Where the personality came from, for logging and the `!reload` reply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {

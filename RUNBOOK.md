@@ -140,7 +140,9 @@ with `LLM_MAX_TOKENS=0` usually mean the context ran out.
   llama-server reuses its work when a request starts the same way as the last one in
   that slot. The system prompt is always the same, but chats in different channels
   have different histories, so the history often gets re-read at ~25 tok/s. That's
-  why `CHAT_HISTORY_MESSAGES` is what really sets the speed:
+  why `CHAT_HISTORY_MESSAGES` is what really sets the speed. With
+  `CHAT_MEMORY_SCOPE=server`, every channel shares one history, so a bigger limit
+  is more useful there:
 
   | `CHAT_HISTORY_MESSAGES` | Typical history | Worst-case extra wait |
   |---|---|---|

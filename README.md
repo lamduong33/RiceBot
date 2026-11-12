@@ -94,10 +94,16 @@ what do you think about pineapple on pizza @RiceBot
 - **People:** RiceBot always has everyone's `notes` from `people.toml`, so "tell me
   about Kevin" works without tagging Kevin, and so do follow-ups like "what else is
   he into?".
-- **Memory:** RiceBot remembers its recent exchanges in each channel separately: the
-  last `CHAT_HISTORY_MESSAGES` messages (default 10, which is 5 questions and
-  answers). It only sees messages that mention it, not the rest of the channel.
-  Memory is kept in RAM, so it's lost on restart and on `!reload`.
+- **Memory:** RiceBot remembers its recent exchanges: the last
+  `CHAT_HISTORY_MESSAGES` messages (default 10, which is 5 questions and answers).
+  It only sees messages that mention it, not the rest of the channel. Memory is
+  kept in RAM, so it's lost on restart and on `!reload`.
+  - `CHAT_MEMORY_SCOPE=channel` (default): each channel has its own memory.
+  - `CHAT_MEMORY_SCOPE=server`: one memory for the whole server, so RiceBot can
+    bring up what was said in another channel. Each remembered message is tagged
+    with its channel, like `[#gaming] Kevin: gg`, so it can tell conversations
+    apart. The history limit then covers every channel together, so raise
+    `CHAT_HISTORY_MESSAGES` if conversations feel forgetful.
 - **Errors:** if the LLM server isn't running or doesn't answer within
   `LLM_TIMEOUT_SECS`, RiceBot apologises instead of replying.
 
