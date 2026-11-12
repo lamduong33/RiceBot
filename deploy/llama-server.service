@@ -3,7 +3,7 @@ Description=llama.cpp server for RiceBot
 
 [Service]
 EnvironmentFile=%h/.config/ricebot/llama.env
-ExecStart=%h/llama.cpp/build/bin/llama-server -m ${MODEL} --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 32768
+ExecStart=%h/llama.cpp/build/bin/llama-server -m ${MODEL} --host 127.0.0.1 --port 8080 -t 12 -tb 24 --numa distribute --parallel 2 -c 32768 --jinja
 Restart=on-failure
 RestartSec=5
 

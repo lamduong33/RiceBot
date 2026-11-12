@@ -9,6 +9,7 @@ anyhow = "1"
 dotenvy = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 serenity = { version = "0.12", default-features = false, features = [
     "builder",
     "cache",
@@ -41,6 +42,3 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # upstream 0.6.1 with only that unused backend removed.
 [patch.crates-io]
 hpke-rs = { path = "vendor/hpke-rs" }
-
-[dev-dependencies]
-serde_json = "1"

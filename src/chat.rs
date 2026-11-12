@@ -15,11 +15,12 @@ use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    config::{ChatConfig, LlmConfig, MemoryScope},
-    llm::{ChatMessage, LlmClient, Role},
+    config::{ChatConfig, LlmConfig, MemoryScope, SearchConfig},
+    llm::{ChatMessage, Completion, LlmClient, Role},
     people::People,
     personality::{self, Source},
     reply,
+    search::{self, SearchClient},
 };
 
 /// Discord's limit on the length of a single message, in characters.
@@ -43,6 +44,8 @@ pub struct Chat {
     /// Personality and people, replaced together by `!reload`. Each message
     /// takes its own reference, so a reload never changes a reply halfway.
     knowledge: RwLock<Arc<Knowledge>>,
+    /// Web search offered to the model as a tool, if `SEARXNG_URL` is set.
+    search: Option<SearchClient>,
     history_len: usize,
     memory_scope: MemoryScope,
     /// Recent conversation per channel or per server, oldest first.
@@ -66,12 +69,18 @@ struct Knowledge {
 }
 
 impl Chat {
-    pub fn new(chat: &ChatConfig, llm: &LlmConfig) -> Result<Self> {
+    pub fn new(chat: &ChatConfig, llm: &LlmConfig, search: &SearchConfig) -> Result<Self> {
+        let search = SearchClient::new(search)?;
+        match &search {
+            Some(client) => info!(max_searches_per_message = client.max_calls(), "web search is on"),
+            None => info!("web search is off (SEARXNG_URL isn't set)"),
+        }
         Ok(Self {
             llm: LlmClient::new(llm)?,
             permits: Semaphore::new(llm.max_concurrency),
             files: chat.clone(),
-            knowledge: RwLock::new(Arc::new(load_knowledge(chat)?)),
+            knowledge: RwLock::new(Arc::new(load_knowledge(chat, search.is_some())?)),
+            search,
             history_len: chat.history_messages,
             memory_scope: chat.memory_scope,
             history: Mutex::default(),
@@ -126,13 +135,20 @@ impl Chat {
         let question = ChatMessage::new(Role::User, format!("{tag}{author}: {prompt}"));
         let history = self.recent_history(key);
         let speakers = speaker_names(&author, &knowledge.people, &history);
-        let mut conversation = vec![ChatMessage::new(Role::System, knowledge.system_prompt.as_str())];
+        let mut system_prompt = knowledge.system_prompt.clone();
+        if self.search.is_some() {
+            // So the model knows what "recent" means. Added last, so it only
+            // changes the cached prompt once a day.
+            let today = msg.timestamp.to_string();
+            system_prompt = format!("{system_prompt}\n\nToday's date (UTC): {}", &today[..10.min(today.len())]);
+        }
+        let mut conversation = vec![ChatMessage::new(Role::System, system_prompt)];
         conversation.extend(history);
         conversation.push(question.clone());
 
         let typing = msg.channel_id.start_typing(&ctx.http);
         let result = match self.permits.acquire().await {
-            Ok(_permit) => self.llm.complete(&conversation).await,
+            Ok(_permit) => self.answer(&mut conversation).await,
             Err(_) => return, // The semaphore is never closed.
         };
         typing.stop();
@@ -157,6 +173,53 @@ impl Chat {
         }
     }
 
+    /// Gets the model's reply, letting it search the web first when search is
+    /// on. Only the final reply is kept in chat memory, not the searches.
+    async fn answer(&self, conversation: &mut Vec<ChatMessage>) -> Result<String> {
+        let Some(search) = &self.search else {
+            return self.llm.complete(conversation).await;
+        };
+        let tools = [search::tool_definition()];
+        let mut searches = 0;
+        // Each round either runs a search or refuses one, so this ends after
+        // at most max_calls + 1 rounds with tools, then one without.
+        for round in 0..=search.max_calls() {
+            if searches >= search.max_calls() {
+                break;
+            }
+            let completion = match self.llm.chat(conversation, Some(&tools)).await {
+                Ok(completion) => completion,
+                // Usually llama-server running without --jinja, or a chat
+                // template without tool support. Answer without searching.
+                Err(e) if round == 0 => {
+                    warn!("LLM request with tools failed, answering without web search: {e:#}");
+                    return self.llm.complete(conversation).await;
+                }
+                Err(e) => return Err(e),
+            };
+            let (content, calls) = match completion {
+                Completion::Reply(reply) => return Ok(reply),
+                Completion::ToolCalls { content, calls } => (content, calls),
+            };
+
+            conversation.push(ChatMessage::tool_request(content, calls.clone()));
+            for call in calls {
+                let result = if call.function.name != search::TOOL_NAME {
+                    format!("There is no tool called {:?}. Only web_search is available.", call.function.name)
+                } else if searches >= search.max_calls() {
+                    "Search limit reached for this message. Answer with what you have.".into()
+                } else {
+                    searches += 1;
+                    search.run_tool(&call.function.arguments).await
+                };
+                conversation.push(ChatMessage::tool_result(call.id, result));
+            }
+        }
+        // Out of searches: the last request offers no tools, so the model has
+        // to answer with what it found.
+        self.llm.complete(conversation).await
+    }
+
     /// Re-reads the personality and people files and clears chat memory. Only
     /// the bot's owner (or members of the team that owns it) may do this.
     async fn reload(&self, ctx: &Context, msg: &Message) {
@@ -166,7 +229,7 @@ impl Chat {
             return;
         }
 
-        let reply = match load_knowledge(&self.files) {
+        let reply = match load_knowledge(&self.files, self.search.is_some()) {
             Ok(knowledge) => {
                 let personality = match knowledge.personality_source {
                     Source::File => format!("my personality from `{}`", self.files.personality_file.display()),
@@ -218,7 +281,7 @@ impl Chat {
 }
 
 /// Reads the personality and people files, logging what was loaded.
-fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
+fn load_knowledge(files: &ChatConfig, search: bool) -> Result<Knowledge> {
     let (mut system_prompt, personality_source) =
         personality::load(&files.personality_file, files.personality_file_required)?;
     let people = People::load(&files.people_file, files.people_file_required)?;
@@ -226,6 +289,9 @@ fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
     // templates reject more than one.
     if files.memory_scope == MemoryScope::Server {
         system_prompt = format!("{system_prompt}\n{}", personality::SERVER_MEMORY_RULES);
+    }
+    if search {
+        system_prompt = format!("{system_prompt}\n\n{}", personality::SEARCH_RULES);
     }
     if let Some(notes) = people.describe_all() {
         system_prompt = format!("{system_prompt}\n\n{notes}");
@@ -353,6 +419,194 @@ fn split_message(text: &str, limit: usize) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// End-to-end tests of the search loop against fake LLM and SearXNG
+    /// servers, so tool calling is checked without a real model.
+    mod search_loop {
+        use std::{
+            io::{BufRead, BufReader, Read, Write},
+            net::TcpListener,
+            path::PathBuf,
+            sync::{Arc, Mutex},
+            thread,
+            time::Duration,
+        };
+
+        use serde_json::{Value, json};
+
+        use super::*;
+
+        /// Answers each HTTP request with the next queued (status, body) and
+        /// records the request bodies.
+        struct FakeServer {
+            url: String,
+            requests: Arc<Mutex<Vec<String>>>,
+        }
+
+        impl FakeServer {
+            fn start(responses: Vec<(u16, Value)>) -> Self {
+                let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+                let url = format!("http://{}", listener.local_addr().unwrap());
+                let requests = Arc::new(Mutex::new(Vec::new()));
+                let seen = Arc::clone(&requests);
+                thread::spawn(move || {
+                    for (stream, (status, body)) in listener.incoming().zip(responses) {
+                        let mut stream = stream.unwrap();
+                        let mut reader = BufReader::new(stream.try_clone().unwrap());
+                        let mut first = String::new();
+                        reader.read_line(&mut first).unwrap();
+                        let mut length = 0;
+                        loop {
+                            let mut line = String::new();
+                            reader.read_line(&mut line).unwrap();
+                            if line == "\r\n" {
+                                break;
+                            }
+                            if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                                length = value.trim().parse().unwrap();
+                            }
+                        }
+                        let mut request_body = vec![0; length];
+                        reader.read_exact(&mut request_body).unwrap();
+                        let request_body = String::from_utf8(request_body).unwrap();
+                        seen.lock().unwrap().push(format!("{}{request_body}", first.trim_end()));
+                        let body = body.to_string();
+                        write!(
+                            stream,
+                            "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                        .unwrap();
+                    }
+                });
+                Self { url, requests }
+            }
+
+            fn requests(&self) -> Vec<String> {
+                self.requests.lock().unwrap().clone()
+            }
+        }
+
+        fn reply(text: &str) -> (u16, Value) {
+            (200, json!({"choices": [{"message": {"content": text}}]}))
+        }
+
+        fn search_call(query: &str) -> (u16, Value) {
+            (200, json!({"choices": [{"message": {"content": "", "tool_calls": [{
+                "id": "abc123XYZ", "type": "function",
+                "function": {"name": "web_search", "arguments": json!({"query": query}).to_string()}
+            }]}}]}))
+        }
+
+        fn searx_results() -> (u16, Value) {
+            (200, json!({"results": [{"title": "Rice prices", "url": "https://rice.example", "content": "Rice is $1."}]}))
+        }
+
+        fn chat(llm: &FakeServer, searx: Option<&FakeServer>, max_calls: usize) -> Chat {
+            let llm_config = LlmConfig {
+                base_url: llm.url.clone(),
+                model: "local".into(),
+                timeout: Duration::from_secs(5),
+                max_tokens: None,
+                temperature: 0.7,
+                max_concurrency: 1,
+            };
+            let search = SearchConfig {
+                url: searx.map(|server| server.url.clone()),
+                max_calls,
+                ..SearchConfig::default()
+            };
+            Chat {
+                llm: LlmClient::new(&llm_config).unwrap(),
+                permits: Semaphore::new(1),
+                files: ChatConfig {
+                    personality_file: PathBuf::from("does/not/exist.md"),
+                    personality_file_required: false,
+                    people_file: PathBuf::from("does/not/exist.toml"),
+                    people_file_required: false,
+                    history_messages: 10,
+                    memory_scope: MemoryScope::Channel,
+                },
+                knowledge: RwLock::new(Arc::new(Knowledge {
+                    system_prompt: String::new(),
+                    personality_source: Source::Default,
+                    people: People::default(),
+                })),
+                search: SearchClient::new(&search).unwrap(),
+                history_len: 10,
+                memory_scope: MemoryScope::Channel,
+                history: Mutex::default(),
+            }
+        }
+
+        fn conversation() -> Vec<ChatMessage> {
+            vec![
+                ChatMessage::new(Role::System, "You are RiceBot."),
+                ChatMessage::new(Role::User, "Sam: how much is rice?"),
+            ]
+        }
+
+        #[tokio::test]
+        async fn searches_then_answers() {
+            let llm = FakeServer::start(vec![search_call("rice price"), reply("Rice is $1, sprout.")]);
+            let searx = FakeServer::start(vec![searx_results()]);
+            let chat = chat(&llm, Some(&searx), 2);
+
+            let mut conversation = conversation();
+            assert_eq!(chat.answer(&mut conversation).await.unwrap(), "Rice is $1, sprout.");
+
+            let llm_requests = llm.requests();
+            assert_eq!(llm_requests.len(), 2);
+            assert!(llm_requests[0].contains(r#""tools":[{"#));
+            // The search result goes back as a tool message answering the call.
+            assert!(llm_requests[1].contains(r#""role":"tool""#));
+            assert!(llm_requests[1].contains(r#""tool_call_id":"abc123XYZ""#));
+            assert!(llm_requests[1].contains("Rice is $1."));
+            assert!(searx.requests()[0].starts_with("GET /search?q=rice+price&format=json"));
+        }
+
+        #[tokio::test]
+        async fn stops_offering_tools_at_the_limit() {
+            let llm = FakeServer::start(vec![search_call("one"), reply("done")]);
+            let searx = FakeServer::start(vec![searx_results()]);
+            let chat = chat(&llm, Some(&searx), 1);
+
+            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "done");
+            let llm_requests = llm.requests();
+            assert!(llm_requests[0].contains(r#""tools":"#));
+            assert!(!llm_requests[1].contains(r#""tools":"#), "last request must not offer tools");
+            assert_eq!(searx.requests().len(), 1);
+        }
+
+        #[tokio::test]
+        async fn falls_back_when_the_server_rejects_tools() {
+            let llm = FakeServer::start(vec![(500, json!({"error": "tools need --jinja"})), reply("plain answer")]);
+            let searx = FakeServer::start(vec![]);
+            let chat = chat(&llm, Some(&searx), 2);
+
+            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "plain answer");
+            assert!(!llm.requests()[1].contains(r#""tools":"#));
+        }
+
+        #[tokio::test]
+        async fn search_errors_are_told_to_the_model() {
+            let llm = FakeServer::start(vec![search_call("rice"), reply("couldn't look it up")]);
+            let searx = FakeServer::start(vec![(403, json!({}))]);
+            let chat = chat(&llm, Some(&searx), 2);
+
+            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "couldn't look it up");
+            assert!(llm.requests()[1].contains("The web search failed"));
+        }
+
+        #[tokio::test]
+        async fn without_searxng_no_tools_are_offered() {
+            let llm = FakeServer::start(vec![reply("hi")]);
+            let chat = chat(&llm, None, 2);
+
+            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "hi");
+            assert!(!llm.requests()[0].contains(r#""tools":"#));
+        }
+    }
 
     #[test]
     fn speaker_names_include_tagged_history_once() {

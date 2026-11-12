@@ -20,6 +20,7 @@ case "${1:-status}" in
     case "${2:-}" in
       mag-mell) m="$HOME/models/MN-12B-Mag-Mell-R1-Q4_K_M.gguf" ;;
       cydonia)  m="$HOME/models/TheDrummer_Cydonia-24B-v4.3-Q4_K_M.gguf" ;;
+      qwen)     m="$HOME/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf" ;;
       "")       grep '^MODEL=' "$ENVF"; exit 0 ;;
       *)        m="$2" ;;
     esac
@@ -27,5 +28,5 @@ case "${1:-status}" in
     sed -i "s|^MODEL=.*|MODEL=$m|" "$ENVF"
     systemctl --user restart llama-server
     echo "llama-server now using $(basename "$m")" ;;
-  *) echo "usage: ricebot [status|start|stop|restart|logs [llama-server]|update|model [mag-mell|cydonia|PATH]]" >&2; exit 1 ;;
+  *) echo "usage: ricebot [status|start|stop|restart|logs [llama-server]|update|model [mag-mell|cydonia|qwen|PATH]]" >&2; exit 1 ;;
 esac
