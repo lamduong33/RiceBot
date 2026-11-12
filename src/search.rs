@@ -126,7 +126,8 @@ pub fn tool_definition() -> Value {
         "function": {
             "name": TOOL_NAME,
             "description": "Search the web. Use it for news, recent events, scores, prices, \
-                release dates, or facts you aren't sure about. Don't use it for small talk, \
+                release dates, facts you aren't sure about, or anything you don't recognise \
+                (it may be newer than your training). Don't use it for small talk, \
                 opinions, or anything about the people in this server.",
             "parameters": {
                 "type": "object",
