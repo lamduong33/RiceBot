@@ -9,6 +9,9 @@ target
 
 # Secrets
 .env
+# Real people and inside jokes; commit the .example versions instead
+people.toml
+PERSONALITY.md
 ricebot_token.txt
 
 # LLM models

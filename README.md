@@ -21,6 +21,7 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
 | `src/handler.rs` | Routes Discord events to the features |
 | `src/greeter.rs` | Voice join → play → leave, one greeting per server at a time |
 | `src/chat.rs` | Mention handling, per-channel history, splitting long replies |
+| `src/people.rs` | People the bot knows (`people.toml`), keyed by Discord user ID |
 | `src/llm.rs` | Client for the OpenAI-compatible `/v1/chat/completions` API |
 
 ## Setup
@@ -35,6 +36,12 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
    llama-server -m model.gguf --host 127.0.0.1 --port 8080 -t <physical cores> --parallel 2
    ```
 3. **Configure:** `cp .env.example .env` and set `DISCORD_TOKEN`.
+   - **Personality:** `cp PERSONALITY.example.md PERSONALITY.md` and make it
+     yours; it becomes the system prompt.
+   - **People:** `cp people.example.toml people.toml` and fill in Discord user
+     IDs (Developer Mode → right-click a user → *Copy User ID*). RiceBot calls
+     them by `name` and sees their `notes` when they talk to it or are
+     mentioned. Restart the bot after editing either file.
 4. **Run:** `cargo run --release`
 
 ## Development
