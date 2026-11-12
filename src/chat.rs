@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use serenity::{
-    all::{ChannelId, CreateAllowedMentions, CreateMessage, Message, UserId},
+    all::{ChannelId, CreateAllowedMentions, CreateMessage, GuildId, Message, UserId},
     client::Context,
     utils::{ContentSafeOptions, content_safe},
 };
@@ -15,7 +15,7 @@ use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    config::{ChatConfig, LlmConfig},
+    config::{ChatConfig, LlmConfig, MemoryScope},
     llm::{ChatMessage, LlmClient, Role},
     people::People,
     personality::{self, Source},
@@ -44,8 +44,16 @@ pub struct Chat {
     /// takes its own reference, so a reload never changes a reply halfway.
     knowledge: RwLock<Arc<Knowledge>>,
     history_len: usize,
-    /// Recent conversation per channel, oldest first.
-    history: Mutex<HashMap<ChannelId, VecDeque<ChatMessage>>>,
+    memory_scope: MemoryScope,
+    /// Recent conversation per channel or per server, oldest first.
+    history: Mutex<HashMap<MemoryKey, VecDeque<ChatMessage>>>,
+}
+
+/// Which conversation a message belongs to in chat memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum MemoryKey {
+    Channel(ChannelId),
+    Server(GuildId),
 }
 
 /// What the bot is told before every conversation: who it is and who it knows.
@@ -65,6 +73,7 @@ impl Chat {
             files: chat.clone(),
             knowledge: RwLock::new(Arc::new(load_knowledge(chat)?)),
             history_len: chat.history_messages,
+            memory_scope: chat.memory_scope,
             history: Mutex::default(),
         })
     }
@@ -100,8 +109,22 @@ impl Chat {
         };
         info!(user = %msg.author.id, channel = %msg.channel_id, "answering mention");
 
-        let question = ChatMessage::new(Role::User, format!("{author}: {prompt}"));
-        let history = self.recent_history(msg.channel_id);
+        // With server-wide memory, each message says which channel it came
+        // from. Messages outside a server (DMs) keep per-channel memory.
+        let (key, tag) = match (self.memory_scope, msg.guild_id) {
+            (MemoryScope::Server, Some(guild_id)) => {
+                let channel = msg
+                    .channel_id
+                    .name(ctx)
+                    .await
+                    .unwrap_or_else(|_| "unknown-channel".into());
+                (MemoryKey::Server(guild_id), format!("[#{channel}] "))
+            }
+            _ => (MemoryKey::Channel(msg.channel_id), String::new()),
+        };
+
+        let question = ChatMessage::new(Role::User, format!("{tag}{author}: {prompt}"));
+        let history = self.recent_history(key);
         let speakers = speaker_names(&author, &knowledge.people, &history);
         let mut conversation = vec![ChatMessage::new(Role::System, knowledge.system_prompt.as_str())];
         conversation.extend(history);
@@ -125,7 +148,7 @@ impl Chat {
                 // Saving the cleaned reply keeps a bad one from teaching the
                 // model to do it again.
                 send_reply(ctx, msg, &answer).await;
-                self.remember(msg.channel_id, question, ChatMessage::new(Role::Assistant, answer));
+                self.remember(key, question, ChatMessage::new(Role::Assistant, answer));
             }
             Err(e) => {
                 error!("LLM request failed: {e:#}");
@@ -170,21 +193,23 @@ impl Chat {
         send_reply(ctx, msg, &reply).await;
     }
 
-    fn recent_history(&self, channel_id: ChannelId) -> Vec<ChatMessage> {
+    fn recent_history(&self, key: MemoryKey) -> Vec<ChatMessage> {
         self.history
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(&channel_id)
+            .get(&key)
             .map(|messages| messages.iter().cloned().collect())
             .unwrap_or_default()
     }
 
-    fn remember(&self, channel_id: ChannelId, question: ChatMessage, answer: ChatMessage) {
+    /// Stores a question and its answer together, so they stay next to each
+    /// other even when replies in several channels finish at the same time.
+    fn remember(&self, key: MemoryKey, question: ChatMessage, answer: ChatMessage) {
         if self.history_len == 0 {
             return;
         }
         let mut history = self.history.lock().unwrap_or_else(PoisonError::into_inner);
-        let messages = history.entry(channel_id).or_default();
+        let messages = history.entry(key).or_default();
         messages.extend([question, answer]);
         while messages.len() > self.history_len {
             messages.pop_front();
@@ -199,6 +224,9 @@ fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
     let people = People::load(&files.people_file, files.people_file_required)?;
     // Everyone's notes go in the single system message, because some chat
     // templates reject more than one.
+    if files.memory_scope == MemoryScope::Server {
+        system_prompt = format!("{system_prompt}\n{}", personality::SERVER_MEMORY_RULES);
+    }
     if let Some(notes) = people.describe_all() {
         system_prompt = format!("{system_prompt}\n\n{notes}");
     }
@@ -216,12 +244,12 @@ fn load_knowledge(files: &ChatConfig) -> Result<Knowledge> {
 }
 
 /// Names that can appear as "Name:" labels for people other than the bot:
-/// the author, everyone in `people.toml` and everyone in the channel's memory.
+/// the author, everyone in `people.toml` and everyone in chat memory.
 fn speaker_names(author: &str, people: &People, history: &[ChatMessage]) -> Vec<String> {
     let from_history = history
         .iter()
         .filter(|message| message.role == Role::User)
-        .filter_map(|message| message.content.split_once(": "))
+        .filter_map(|message| reply::strip_channel_tag(&message.content).split_once(": "))
         .map(|(name, _)| name);
     let mut names: Vec<String> = Vec::new();
     for name in std::iter::once(author).chain(people.names()).chain(from_history) {
@@ -325,6 +353,20 @@ fn split_message(text: &str, limit: usize) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn speaker_names_include_tagged_history_once() {
+        let history = [
+            ChatMessage::new(Role::User, "[#gaming] Kevin: gg"),
+            ChatMessage::new(Role::Assistant, "Someone: not a speaker"),
+            ChatMessage::new(Role::User, "Garrett: hi"),
+            ChatMessage::new(Role::User, "[#general] kevin: again"),
+        ];
+        assert_eq!(
+            speaker_names("Garrett", &People::default(), &history),
+            vec!["Garrett", "Kevin"]
+        );
+    }
 
     #[test]
     fn strips_both_mention_forms() {

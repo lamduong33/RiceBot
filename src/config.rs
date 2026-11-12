@@ -48,8 +48,29 @@ pub struct ChatConfig {
     pub people_file: PathBuf,
     /// Whether `people_file` was set explicitly, making a missing file an error.
     pub people_file_required: bool,
-    /// Previous messages per channel sent along as context.
+    /// Previous messages sent along as context, per channel or per server
+    /// depending on `memory_scope`.
     pub history_messages: usize,
+    pub memory_scope: MemoryScope,
+}
+
+/// Whether chat memory is kept per text channel or shared across a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryScope {
+    Channel,
+    Server,
+}
+
+impl FromStr for MemoryScope {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "channel" => Ok(Self::Channel),
+            "server" => Ok(Self::Server),
+            other => Err(format!("expected \"channel\" or \"server\", got {other:?}")),
+        }
+    }
 }
 
 impl Config {
@@ -85,6 +106,7 @@ impl Config {
                 people_file_required: optional::<String>("PEOPLE_FILE")?.is_some(),
                 people_file: optional("PEOPLE_FILE")?.unwrap_or_else(|| "people.toml".into()),
                 history_messages: optional("CHAT_HISTORY_MESSAGES")?.unwrap_or(10),
+                memory_scope: optional("CHAT_MEMORY_SCOPE")?.unwrap_or(MemoryScope::Channel),
             },
         };
 
@@ -118,5 +140,17 @@ where
             .map_err(|e| anyhow::anyhow!("invalid value for {key}: {e}")),
         Ok(_) | Err(env::VarError::NotPresent) => Ok(None),
         Err(e) => Err(e).with_context(|| format!("could not read {key}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_memory_scope() {
+        assert_eq!("server".parse(), Ok(MemoryScope::Server));
+        assert_eq!("Channel".parse(), Ok(MemoryScope::Channel));
+        assert!("guild".parse::<MemoryScope>().is_err());
     }
 }

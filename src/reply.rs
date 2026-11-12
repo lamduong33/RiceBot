@@ -7,9 +7,10 @@
 //! RiceBot: Well shit, Garrett.
 //! ```
 //!
-//! Messages reach the model as "Name: message", and some models copy that
-//! layout: they label their own reply, repeat the message they're answering,
-//! or carry on writing lines for other people.
+//! Messages reach the model as "Name: message" (with server-wide memory,
+//! "[#channel] Name: message"), and some models copy that layout: they label
+//! their own reply, repeat the message they're answering, or carry on writing
+//! lines for other people.
 
 /// Who a line of the model's output is attributed to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,8 +58,9 @@ pub fn clean(reply: &str, bot_names: &[&str], other_names: &[&str]) -> String {
     cleaned
 }
 
-/// Removes any "Name:" labels at the start of `line` (there can be several,
-/// as in "RiceBot: Garrett: hi") and returns who the last one names.
+/// Removes any "Name:" labels and "[#channel]" tags at the start of `line`
+/// (there can be several, as in "RiceBot: [#general] Garrett: hi") and
+/// returns who the last label names.
 fn split_labels<'a>(
     mut line: &'a str,
     bot_names: &[&str],
@@ -66,7 +68,9 @@ fn split_labels<'a>(
 ) -> (Option<Speaker>, &'a str) {
     let mut speaker = None;
     loop {
-        let trimmed = line.trim_start();
+        let untagged = strip_channel_tag(line.trim_start());
+        let tagged = untagged.len() != line.trim_start().len();
+        let trimmed = untagged.trim_start();
         let found = bot_names
             .iter()
             .map(|name| (Speaker::Bot, *name))
@@ -77,9 +81,19 @@ fn split_labels<'a>(
                 speaker = Some(who);
                 line = rest;
             }
-            None => return (speaker, if speaker.is_some() { trimmed } else { line }),
+            None if tagged || speaker.is_some() => return (speaker, trimmed),
+            None => return (speaker, line),
         }
     }
+}
+
+/// Removes a leading "[#channel]" tag, as added to messages when chat memory
+/// is shared across a server.
+pub fn strip_channel_tag(text: &str) -> &str {
+    text.strip_prefix("[#")
+        .and_then(|rest| rest.split_once(']'))
+        .filter(|(channel, _)| !channel.is_empty() && channel.len() <= 100 && !channel.contains('\n'))
+        .map_or(text, |(_, rest)| rest.trim_start())
 }
 
 /// If `text` starts with `name:` (ignoring case, optionally bold as
@@ -160,6 +174,16 @@ mod tests {
         assert_eq!(run("Note: rice is life"), "Note: rice is life");
         assert_eq!(run("Ask Garrett: he knows"), "Ask Garrett: he knows");
         assert_eq!(run("Garrettson: hi"), "Garrettson: hi");
+    }
+
+    #[test]
+    fn removes_channel_tags() {
+        assert_eq!(run("[#general] RiceBot: hey"), "hey");
+        assert_eq!(run("RiceBot: [#gaming] Garrett: gg\nRiceBot: nice"), "nice");
+        assert_eq!(run("[#general] hey"), "hey");
+        assert_eq!(run("[link](https://x.y) is cool"), "[link](https://x.y) is cool");
+        assert_eq!(strip_channel_tag("[#gaming] Kevin: hi"), "Kevin: hi");
+        assert_eq!(strip_channel_tag("Kevin: hi"), "Kevin: hi");
     }
 
     #[test]
