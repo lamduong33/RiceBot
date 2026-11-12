@@ -44,6 +44,11 @@ Discord ⇄ rice_bot ──HTTP (127.0.0.1)──▶ llama-server ── model.g
      mentioned. Restart the bot after editing either file.
 4. **Run:** `cargo run --release`
 
+## Running in production
+
+See [RUNBOOK.md](RUNBOOK.md) for running RiceBot as systemd services, the
+`ricebot` helper command, debugging steps, and model/performance notes.
+
 ## Development
 
 ```sh

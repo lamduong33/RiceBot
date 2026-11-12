@@ -52,10 +52,8 @@ pub struct ChatConfig {
 }
 
 impl Config {
+    /// Reads settings from the environment. `main` loads `.env` beforehand.
     pub fn from_env() -> Result<Self> {
-        // A missing .env file is fine; everything can come from the environment.
-        let _ = dotenvy::dotenv();
-
         let discord_token = required("DISCORD_TOKEN")?;
 
         let config = Self {

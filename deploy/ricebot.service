@@ -1,0 +1,13 @@
+[Unit]
+Description=RiceBot Discord bot
+Wants=llama-server.service network-online.target
+After=llama-server.service network-online.target
+
+[Service]
+WorkingDirectory=%h/Desktop/Git/RiceBot
+ExecStart=%h/Desktop/Git/RiceBot/target/release/rice_bot
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
