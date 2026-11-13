@@ -138,10 +138,16 @@ impl Chat {
         let speakers = speaker_names(&author, &knowledge.people, &history);
         let mut system_prompt = knowledge.system_prompt.clone();
         if self.search.is_some() {
-            // So the model knows what "recent" means. Added last, so it only
-            // changes the cached prompt once a day.
+            // So the model knows what "recent" means, followed by the warning
+            // that makes it search for things newer than its training, which
+            // works best as the last thing in the prompt. Added last, so they
+            // only change the cached prompt once a day.
             let today = msg.timestamp.to_string();
-            system_prompt = format!("{system_prompt}\n\nToday's date (UTC): {}", &today[..10.min(today.len())]);
+            system_prompt = format!(
+                "{system_prompt}\n\nToday's date (UTC): {}\n\n{}",
+                &today[..10.min(today.len())],
+                personality::STALE_KNOWLEDGE_WARNING
+            );
         }
         let mut conversation = vec![ChatMessage::new(Role::System, system_prompt)];
         conversation.extend(history);
