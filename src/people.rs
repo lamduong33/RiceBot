@@ -107,8 +107,10 @@ impl People {
         }
         Some(format!(
             "# People you know\n\
-             These are people in this server. Use these facts when they come up, \
-             whether or not the person is in the conversation:\n{}",
+             These are people in this server. This is background so you know who \
+             people are, not material to work into replies. Only bring up a fact \
+             when the conversation is actually about it, and then say it in your \
+             own words. Never repeat these notes word for word:\n{}",
             lines.join("\n")
         ))
     }
