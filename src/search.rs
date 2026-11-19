@@ -84,9 +84,13 @@ impl SearchClient {
     pub async fn run_tool(&self, arguments: &str) -> String {
         let query = match serde_json::from_str::<Arguments>(arguments) {
             Ok(args) => truncate(args.query.trim(), MAX_QUERY_CHARS),
-            Err(_) => return r#"Invalid arguments. Call web_search with {"query": "what to search for"}."#.into(),
+            Err(_) => {
+                warn!(arguments, "web search called with invalid arguments");
+                return r#"Invalid arguments. Call web_search with {"query": "what to search for"}."#.into();
+            }
         };
         if query.is_empty() {
+            warn!("web search called with an empty query");
             return "The search query was empty.".into();
         }
 

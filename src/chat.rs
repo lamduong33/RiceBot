@@ -222,11 +222,16 @@ impl Chat {
             conversation.push(ChatMessage::tool_request(content, calls.clone()));
             for call in calls {
                 let result = if call.function.name != search::TOOL_NAME {
+                    warn!(tool = %call.function.name, "model called an unknown tool");
                     format!(
                         "There is no tool called {:?}. Only web_search is available.",
                         call.function.name
                     )
                 } else if searches >= search.max_calls() {
+                    info!(
+                        arguments = %call.function.arguments,
+                        "web search skipped: limit reached for this message"
+                    );
                     "Search limit reached for this message. Answer with what you have.".into()
                 } else {
                     searches += 1;
