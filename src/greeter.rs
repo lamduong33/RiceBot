@@ -100,7 +100,12 @@ impl Greeter {
         result
     }
 
-    async fn play(&self, manager: &Songbird, guild_id: GuildId, channel_id: ChannelId) -> Result<()> {
+    async fn play(
+        &self,
+        manager: &Songbird,
+        guild_id: GuildId,
+        channel_id: ChannelId,
+    ) -> Result<()> {
         let call = manager
             .join(guild_id, channel_id)
             .await
@@ -145,7 +150,10 @@ struct BusyGuard<'a> {
 
 impl<'a> BusyGuard<'a> {
     fn acquire(busy: &'a Mutex<HashSet<GuildId>>, guild_id: GuildId) -> Option<Self> {
-        let inserted = busy.lock().unwrap_or_else(PoisonError::into_inner).insert(guild_id);
+        let inserted = busy
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(guild_id);
         inserted.then_some(Self { busy, guild_id })
     }
 }

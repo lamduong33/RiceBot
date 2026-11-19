@@ -153,7 +153,10 @@ mod tests {
             "\n- Alex: always asks what to eat; mains support\n\
              - Kevin: loves light novels"
         ));
-        assert!(!text.contains("Jordan"), "people without notes are left out");
+        assert!(
+            !text.contains("Jordan"),
+            "people without notes are left out"
+        );
 
         let no_notes = People::parse("[[person]]\nid = 42\nname = \"Jordan\"").unwrap();
         assert!(no_notes.describe_all().is_none());

@@ -92,7 +92,9 @@ fn split_labels<'a>(
 pub fn strip_channel_tag(text: &str) -> &str {
     text.strip_prefix("[#")
         .and_then(|rest| rest.split_once(']'))
-        .filter(|(channel, _)| !channel.is_empty() && channel.len() <= 100 && !channel.contains('\n'))
+        .filter(|(channel, _)| {
+            !channel.is_empty() && channel.len() <= 100 && !channel.contains('\n')
+        })
         .map_or(text, |(_, rest)| rest.trim_start())
 }
 
@@ -116,7 +118,11 @@ fn strip_label<'a>(text: &'a str, name: &str) -> Option<&'a str> {
         rest = rest.strip_prefix("**").unwrap_or(rest);
     }
     let rest = rest.strip_prefix(':')?;
-    let rest = if bold { rest.strip_prefix("**").unwrap_or(rest) } else { rest };
+    let rest = if bold {
+        rest.strip_prefix("**").unwrap_or(rest)
+    } else {
+        rest
+    };
     // A label is followed by a space or the end of the line, which rules out
     // things like "Sam:3".
     (rest.is_empty() || rest.starts_with(char::is_whitespace)).then(|| rest.trim_start())
@@ -181,13 +187,19 @@ mod tests {
         assert_eq!(run("[#general] RiceBot: hey"), "hey");
         assert_eq!(run("RiceBot: [#gaming] Garrett: gg\nRiceBot: nice"), "nice");
         assert_eq!(run("[#general] hey"), "hey");
-        assert_eq!(run("[link](https://x.y) is cool"), "[link](https://x.y) is cool");
+        assert_eq!(
+            run("[link](https://x.y) is cool"),
+            "[link](https://x.y) is cool"
+        );
         assert_eq!(strip_channel_tag("[#gaming] Kevin: hi"), "Kevin: hi");
         assert_eq!(strip_channel_tag("Kevin: hi"), "Kevin: hi");
     }
 
     #[test]
     fn never_returns_nothing() {
-        assert_eq!(run("RiceBot: Garrett: you're wrong"), "Garrett: you're wrong");
+        assert_eq!(
+            run("RiceBot: Garrett: you're wrong"),
+            "Garrett: you're wrong"
+        );
     }
 }

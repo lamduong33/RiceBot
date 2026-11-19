@@ -95,7 +95,10 @@ pub enum Completion {
     Reply(String),
     /// The model wants tools run first. `content` is any text it wrote
     /// alongside the calls, kept so the conversation can be replayed as is.
-    ToolCalls { content: String, calls: Vec<ToolCall> },
+    ToolCalls {
+        content: String,
+        calls: Vec<ToolCall>,
+    },
 }
 
 #[derive(Serialize)]
@@ -157,13 +160,19 @@ impl LlmClient {
     pub async fn complete(&self, messages: &[ChatMessage]) -> Result<String> {
         match self.chat(messages, None).await? {
             Completion::Reply(reply) => Ok(reply),
-            Completion::ToolCalls { .. } => bail!("LLM asked for a tool although none were offered"),
+            Completion::ToolCalls { .. } => {
+                bail!("LLM asked for a tool although none were offered")
+            }
         }
     }
 
     /// Sends the conversation, offering `tools` if given, and returns either
     /// the model's reply or the tools it wants run.
-    pub async fn chat(&self, messages: &[ChatMessage], tools: Option<&[Value]>) -> Result<Completion> {
+    pub async fn chat(
+        &self,
+        messages: &[ChatMessage],
+        tools: Option<&[Value]>,
+    ) -> Result<Completion> {
         let request = CompletionRequest {
             model: &self.model,
             messages,
@@ -267,12 +276,14 @@ mod tests {
                 arguments: r#"{"query":"rice"}"#.into(),
             },
         };
-        let request = serde_json::to_value(ChatMessage::tool_request(String::new(), vec![call])).unwrap();
+        let request =
+            serde_json::to_value(ChatMessage::tool_request(String::new(), vec![call])).unwrap();
         assert_eq!(request["role"], "assistant");
         assert_eq!(request["tool_calls"][0]["function"]["name"], "web_search");
         assert_eq!(request["tool_calls"][0]["type"], "function");
 
-        let result = serde_json::to_value(ChatMessage::tool_result("call00001", "1. Rice")).unwrap();
+        let result =
+            serde_json::to_value(ChatMessage::tool_result("call00001", "1. Rice")).unwrap();
         assert_eq!(
             result,
             json!({"role": "tool", "content": "1. Rice", "tool_call_id": "call00001"})
@@ -295,14 +306,24 @@ mod tests {
         assert!(content.is_empty());
         assert_eq!(calls[0].function.arguments, r#"{"query":"a"}"#);
         assert_eq!(calls[1].function.arguments, r#"{"query":"b"}"#);
-        assert!(calls.iter().all(|call| call.id.len() == 9 && call.kind == "function"));
+        assert!(
+            calls
+                .iter()
+                .all(|call| call.id.len() == 9 && call.kind == "function")
+        );
     }
 
     #[test]
     fn parses_plain_replies_and_rejects_empty_ones() {
-        let reply = ResponseMessage { content: Some("  hi  ".into()), tool_calls: Some(vec![]) };
+        let reply = ResponseMessage {
+            content: Some("  hi  ".into()),
+            tool_calls: Some(vec![]),
+        };
         assert!(matches!(parse_message(reply).unwrap(), Completion::Reply(text) if text == "hi"));
-        let empty = ResponseMessage { content: Some(" ".into()), tool_calls: None };
+        let empty = ResponseMessage {
+            content: Some(" ".into()),
+            tool_calls: None,
+        };
         assert!(parse_message(empty).is_err());
     }
 

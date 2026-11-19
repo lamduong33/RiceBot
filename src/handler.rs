@@ -31,6 +31,8 @@ impl EventHandler for Handler {
     }
 
     async fn voice_state_update(&self, ctx: Context, old: Option<VoiceState>, new: VoiceState) {
-        self.greeter.on_voice_state_update(&ctx, old.as_ref(), &new).await;
+        self.greeter
+            .on_voice_state_update(&ctx, old.as_ref(), &new)
+            .await;
     }
 }

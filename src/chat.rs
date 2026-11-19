@@ -26,14 +26,16 @@ use crate::{
 /// Discord's limit on the length of a single message, in characters.
 const MESSAGE_LIMIT: usize = 2000;
 
-const EMPTY_PROMPT_REPLY: &str = "Hi! Mention me together with a question and I'll do my best to answer.";
+const EMPTY_PROMPT_REPLY: &str =
+    "Hi! Mention me together with a question and I'll do my best to answer.";
 /// Sent as `@RiceBot !reload`. The bot doesn't request the message content
 /// intent, so commands have to mention it like any other message.
 const RELOAD_COMMAND: &str = "!reload";
 /// The name the personality gives the bot, stripped from the start of replies
 /// along with its Discord username.
 const BOT_NAME: &str = "RiceBot";
-const LLM_ERROR_REPLY: &str = "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
+const LLM_ERROR_REPLY: &str =
+    "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
 /// Longest quote of a replied-to message passed to the model, in characters.
 const QUOTE_LIMIT: usize = 1000;
 
@@ -74,7 +76,10 @@ impl Chat {
     pub fn new(chat: &ChatConfig, llm: &LlmConfig, search: &SearchConfig) -> Result<Self> {
         let search = SearchClient::new(search)?;
         match &search {
-            Some(client) => info!(max_searches_per_message = client.max_calls(), "web search is on"),
+            Some(client) => info!(
+                max_searches_per_message = client.max_calls(),
+                "web search is on"
+            ),
             None => info!("web search is off (SEARXNG_URL isn't set)"),
         }
         Ok(Self {
@@ -90,7 +95,12 @@ impl Chat {
     }
 
     fn knowledge(&self) -> Arc<Knowledge> {
-        Arc::clone(&self.knowledge.read().unwrap_or_else(PoisonError::into_inner))
+        Arc::clone(
+            &self
+                .knowledge
+                .read()
+                .unwrap_or_else(PoisonError::into_inner),
+        )
     }
 
     pub async fn on_message(&self, ctx: &Context, msg: &Message) {
@@ -212,7 +222,10 @@ impl Chat {
             conversation.push(ChatMessage::tool_request(content, calls.clone()));
             for call in calls {
                 let result = if call.function.name != search::TOOL_NAME {
-                    format!("There is no tool called {:?}. Only web_search is available.", call.function.name)
+                    format!(
+                        "There is no tool called {:?}. Only web_search is available.",
+                        call.function.name
+                    )
                 } else if searches >= search.max_calls() {
                     "Search limit reached for this message. Answer with what you have.".into()
                 } else {
@@ -239,16 +252,25 @@ impl Chat {
         let reply = match load_knowledge(&self.files, self.search.is_some()) {
             Ok(knowledge) => {
                 let personality = match knowledge.personality_source {
-                    Source::File => format!("my personality from `{}`", self.files.personality_file.display()),
+                    Source::File => format!(
+                        "my personality from `{}`",
+                        self.files.personality_file.display()
+                    ),
                     Source::Default => format!(
                         "my default personality (`{}` doesn't exist)",
                         self.files.personality_file.display()
                     ),
                 };
                 let people = knowledge.people.len();
-                *self.knowledge.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(knowledge);
+                *self
+                    .knowledge
+                    .write()
+                    .unwrap_or_else(PoisonError::into_inner) = Arc::new(knowledge);
                 // Old replies would keep nudging the model towards the old personality.
-                self.history.lock().unwrap_or_else(PoisonError::into_inner).clear();
+                self.history
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear();
                 format!(
                     "Reloaded {personality} and {people} {} from `{}`, and cleared my chat memory.",
                     if people == 1 { "person" } else { "people" },
@@ -313,7 +335,11 @@ fn load_knowledge(files: &ChatConfig, search: bool) -> Result<Knowledge> {
     }
     info!(count = people.len(), file = %files.people_file.display(), "loaded people");
 
-    Ok(Knowledge { system_prompt, personality_source, people })
+    Ok(Knowledge {
+        system_prompt,
+        personality_source,
+        people,
+    })
 }
 
 /// Names that can appear as "Name:" labels for people other than the bot:
@@ -325,7 +351,10 @@ fn speaker_names(author: &str, people: &People, history: &[ChatMessage]) -> Vec<
         .filter_map(|message| reply::strip_channel_tag(&message.content).split_once(": "))
         .map(|(name, _)| name);
     let mut names: Vec<String> = Vec::new();
-    for name in std::iter::once(author).chain(people.names()).chain(from_history) {
+    for name in std::iter::once(author)
+        .chain(people.names())
+        .chain(from_history)
+    {
         let name = name.trim();
         if !name.is_empty() && !names.iter().any(|known| known.eq_ignore_ascii_case(name)) {
             names.push(name.to_owned());
@@ -516,14 +545,18 @@ mod tests {
                             if line == "\r\n" {
                                 break;
                             }
-                            if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                            if let Some(value) =
+                                line.to_ascii_lowercase().strip_prefix("content-length:")
+                            {
                                 length = value.trim().parse().unwrap();
                             }
                         }
                         let mut request_body = vec![0; length];
                         reader.read_exact(&mut request_body).unwrap();
                         let request_body = String::from_utf8(request_body).unwrap();
-                        seen.lock().unwrap().push(format!("{}{request_body}", first.trim_end()));
+                        seen.lock()
+                            .unwrap()
+                            .push(format!("{}{request_body}", first.trim_end()));
                         let body = body.to_string();
                         write!(
                             stream,
@@ -546,14 +579,20 @@ mod tests {
         }
 
         fn search_call(query: &str) -> (u16, Value) {
-            (200, json!({"choices": [{"message": {"content": "", "tool_calls": [{
-                "id": "abc123XYZ", "type": "function",
-                "function": {"name": "web_search", "arguments": json!({"query": query}).to_string()}
-            }]}}]}))
+            (
+                200,
+                json!({"choices": [{"message": {"content": "", "tool_calls": [{
+                    "id": "abc123XYZ", "type": "function",
+                    "function": {"name": "web_search", "arguments": json!({"query": query}).to_string()}
+                }]}}]}),
+            )
         }
 
         fn searx_results() -> (u16, Value) {
-            (200, json!({"results": [{"title": "Rice prices", "url": "https://rice.example", "content": "Rice is $1."}]}))
+            (
+                200,
+                json!({"results": [{"title": "Rice prices", "url": "https://rice.example", "content": "Rice is $1."}]}),
+            )
         }
 
         fn chat(llm: &FakeServer, searx: Option<&FakeServer>, max_calls: usize) -> Chat {
@@ -602,12 +641,18 @@ mod tests {
 
         #[tokio::test]
         async fn searches_then_answers() {
-            let llm = FakeServer::start(vec![search_call("rice price"), reply("Rice is $1, sprout.")]);
+            let llm = FakeServer::start(vec![
+                search_call("rice price"),
+                reply("Rice is $1, sprout."),
+            ]);
             let searx = FakeServer::start(vec![searx_results()]);
             let chat = chat(&llm, Some(&searx), 2);
 
             let mut conversation = conversation();
-            assert_eq!(chat.answer(&mut conversation).await.unwrap(), "Rice is $1, sprout.");
+            assert_eq!(
+                chat.answer(&mut conversation).await.unwrap(),
+                "Rice is $1, sprout."
+            );
 
             let llm_requests = llm.requests();
             assert_eq!(llm_requests.len(), 2);
@@ -628,17 +673,26 @@ mod tests {
             assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "done");
             let llm_requests = llm.requests();
             assert!(llm_requests[0].contains(r#""tools":"#));
-            assert!(!llm_requests[1].contains(r#""tools":"#), "last request must not offer tools");
+            assert!(
+                !llm_requests[1].contains(r#""tools":"#),
+                "last request must not offer tools"
+            );
             assert_eq!(searx.requests().len(), 1);
         }
 
         #[tokio::test]
         async fn falls_back_when_the_server_rejects_tools() {
-            let llm = FakeServer::start(vec![(500, json!({"error": "tools need --jinja"})), reply("plain answer")]);
+            let llm = FakeServer::start(vec![
+                (500, json!({"error": "tools need --jinja"})),
+                reply("plain answer"),
+            ]);
             let searx = FakeServer::start(vec![]);
             let chat = chat(&llm, Some(&searx), 2);
 
-            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "plain answer");
+            assert_eq!(
+                chat.answer(&mut conversation()).await.unwrap(),
+                "plain answer"
+            );
             assert!(!llm.requests()[1].contains(r#""tools":"#));
         }
 
@@ -648,7 +702,10 @@ mod tests {
             let searx = FakeServer::start(vec![(403, json!({}))]);
             let chat = chat(&llm, Some(&searx), 2);
 
-            assert_eq!(chat.answer(&mut conversation()).await.unwrap(), "couldn't look it up");
+            assert_eq!(
+                chat.answer(&mut conversation()).await.unwrap(),
+                "couldn't look it up"
+            );
             assert!(llm.requests()[1].contains("The web search failed"));
         }
 

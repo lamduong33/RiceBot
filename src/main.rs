@@ -39,8 +39,9 @@ async fn main() -> Result<()> {
     // Discord sends message content for messages that mention the bot even
     // without the privileged MESSAGE_CONTENT intent. It's only needed to read
     // the message someone is replying to when they mention the bot.
-    let mut intents =
-        GatewayIntents::GUILDS | GatewayIntents::GUILD_VOICE_STATES | GatewayIntents::GUILD_MESSAGES;
+    let mut intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_VOICE_STATES
+        | GatewayIntents::GUILD_MESSAGES;
     if config.message_content_intent {
         intents |= GatewayIntents::MESSAGE_CONTENT;
     }
@@ -58,7 +59,10 @@ async fn main() -> Result<()> {
         shard_manager.shutdown_all().await;
     });
 
-    client.start().await.context("Discord client stopped with an error")
+    client
+        .start()
+        .await
+        .context("Discord client stopped with an error")
 }
 
 /// Resolves on Ctrl-C, or on SIGTERM (e.g. `systemctl stop`).
