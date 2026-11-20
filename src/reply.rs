@@ -58,6 +58,104 @@ pub fn clean(reply: &str, bot_names: &[&str], other_names: &[&str]) -> String {
     cleaned
 }
 
+/// Removes tool calls or tool results the model wrote as plain text instead of
+/// making a real call, such as
+///
+/// ```text
+/// web_search: [{"url": "https://...", "title": "Bee Movie", "snippet": "..."}]
+/// ```
+///
+/// Only text at the start of a line that begins with one of `tool_names`
+/// (optionally in backticks) followed by either `:` and a `[`/`{`/`(` block,
+/// or such a block directly, is removed up to where that block closes. A
+/// block that never closes is removed to the end of its line. Ordinary prose
+/// that mentions a tool name is left alone.
+pub fn strip_tool_text(reply: &str, tool_names: &[&str]) -> String {
+    let mut out = String::with_capacity(reply.len());
+    let mut rest = reply;
+    while !rest.is_empty() {
+        let line_end = rest.find('\n').map_or(rest.len(), |i| i + 1);
+        match tool_text_len(rest, tool_names) {
+            Some(len) => {
+                rest = &rest[len..];
+                // Drop what's left of the line if it's only whitespace.
+                let tail_end = rest.find('\n').map_or(rest.len(), |i| i + 1);
+                if rest[..tail_end].trim().is_empty() {
+                    rest = &rest[tail_end..];
+                } else {
+                    rest = rest.trim_start_matches([' ', '\t']);
+                }
+            }
+            None => {
+                out.push_str(&rest[..line_end]);
+                rest = &rest[line_end..];
+            }
+        }
+    }
+    out.trim().to_owned()
+}
+
+/// If `text` starts with written-out tool text, returns how many bytes of it
+/// to remove.
+fn tool_text_len(text: &str, tool_names: &[&str]) -> Option<usize> {
+    let indent = text.len() - text.trim_start_matches([' ', '\t']).len();
+    let body = &text[indent..];
+    let unticked = body.strip_prefix('`').unwrap_or(body);
+    let name = tool_names.iter().find(|name| {
+        unticked
+            .get(..name.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(name))
+    })?;
+    let after_name = &unticked[name.len()..];
+    let after_name = after_name.strip_prefix('`').unwrap_or(after_name);
+    // "name: [..]" or "name(..)" / "name[..]" / "name{..}" with nothing between.
+    let after_sep = match after_name.trim_start_matches([' ', '\t']).strip_prefix(':') {
+        Some(rest) => rest.trim_start_matches([' ', '\t']),
+        None => after_name,
+    };
+    let open = after_sep.chars().next()?;
+    if !matches!(open, '[' | '{' | '(') {
+        return None;
+    }
+    let block_start = text.len() - after_sep.len();
+    let block_len = balanced_len(after_sep).unwrap_or_else(|| {
+        // Never closes: remove to the end of the line.
+        after_sep.find('\n').unwrap_or(after_sep.len())
+    });
+    Some(block_start + block_len)
+}
+
+/// Length of the bracketed block at the start of `text`, counting `[]{}()`
+/// outside of double-quoted strings. `None` if it never closes.
+fn balanced_len(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (i, c) in text.char_indices() {
+        if in_string {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_string = true,
+            '[' | '{' | '(' => depth += 1,
+            ']' | '}' | ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(i + c.len_utf8());
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Removes any "Name:" labels and "[#channel]" tags at the start of `line`
 /// (there can be several, as in "RiceBot: [#general] Garrett: hi") and
 /// returns who the last label names.
@@ -193,6 +291,40 @@ mod tests {
         );
         assert_eq!(strip_channel_tag("[#gaming] Kevin: hi"), "Kevin: hi");
         assert_eq!(strip_channel_tag("Kevin: hi"), "Kevin: hi");
+    }
+
+    #[test]
+    fn strips_written_out_search_results() {
+        let tools = &["web_search"];
+        let reply = r#"web_search: [{"url": "https://www.springfieldspringfield.co.uk/movie_scripts/bee_movie_script.pdf", "title": "Bee Movie Script - Springfield Springfield", "snippet": "Complete script for Bee Movie (2007) starring Jerry Seinfeld."}, {"url": "title": "Bee Movie", "url": "https://en.wikipedia.org/wiki/Bee_Movie", "snippet": "Bee Movie is a 2007 American animated comedy film produced by DreamWorks Animation..."}] Ya like jazz? Bee Movie came out in 2007."#;
+        assert_eq!(
+            strip_tool_text(reply, tools),
+            "Ya like jazz? Bee Movie came out in 2007."
+        );
+        let multiline = "web_search: [\n  {\"title\": \"a ] b\"}\n]\n\nIt's a 2007 movie.";
+        assert_eq!(strip_tool_text(multiline, tools), "It's a 2007 movie.");
+        assert_eq!(
+            strip_tool_text("`web_search`({\"query\": \"bee movie\"})\nsure", tools),
+            "sure"
+        );
+        assert_eq!(
+            strip_tool_text("hi\nweb_search: [{\"url\": \"never closed\nbye", tools),
+            "hi\nbye"
+        );
+    }
+
+    #[test]
+    fn leaves_prose_about_tools_alone() {
+        let tools = &["web_search"];
+        for text in [
+            "I can use web_search for that",
+            "web_search is a tool I have",
+            "web_searching: [lol]",
+            "web_search (the tool) helps",
+            "plain reply",
+        ] {
+            assert_eq!(strip_tool_text(text, tools), text);
+        }
     }
 
     #[test]

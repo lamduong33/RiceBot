@@ -36,6 +36,8 @@ const RELOAD_COMMAND: &str = "!reload";
 const BOT_NAME: &str = "RiceBot";
 const LLM_ERROR_REPLY: &str =
     "Sorry, I can't think right now: my language model isn't responding. Try again in a bit.";
+/// Sent when nothing is left of the model's reply after cleaning it up.
+const EMPTY_REPLY: &str = "Sorry, I lost my train of thought. Ask me again?";
 /// Longest quote of a replied-to message passed to the model, in characters.
 const QUOTE_LIMIT: usize = 1000;
 
@@ -178,6 +180,17 @@ impl Chat {
                 if answer != raw {
                     debug!(raw = %raw, "removed transcript-style text from the reply");
                 }
+                // Some models write a tool call or made-up search results as
+                // text instead of calling the tool.
+                let stripped = reply::strip_tool_text(&answer, &[search::TOOL_NAME]);
+                if stripped != answer {
+                    warn!(raw = %raw, "removed written-out tool text from the reply");
+                }
+                let answer = if stripped.is_empty() {
+                    EMPTY_REPLY.to_owned()
+                } else {
+                    stripped
+                };
                 // Saving the cleaned reply keeps a bad one from teaching the
                 // model to do it again.
                 send_reply(ctx, msg, &answer).await;
